@@ -707,11 +707,6 @@ class PVManagementController:
             elif price >= self.price_high_threshold:
                 reasons.append("Strom teuer")
 
-        # Tageszeit
-        hour = datetime.now().hour
-        if hour < 6 or hour > 21:
-            reasons.append("Nacht")
-
         return ", ".join(reasons) if reasons else ""
 
     @property
