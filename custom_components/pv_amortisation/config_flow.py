@@ -202,6 +202,54 @@ class PVAmortisationOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
+                # === SENSOREN (können nachträglich geändert werden) ===
+
+                # PV Produktion
+                vol.Required(
+                    CONF_PV_PRODUCTION_ENTITY,
+                    default=opts.get(CONF_PV_PRODUCTION_ENTITY)
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain="sensor",
+                        device_class="energy",
+                    )
+                ),
+
+                # Grid Export
+                vol.Optional(
+                    CONF_GRID_EXPORT_ENTITY,
+                    description={"suggested_value": opts.get(CONF_GRID_EXPORT_ENTITY)}
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain="sensor",
+                        device_class="energy",
+                    )
+                ),
+
+                # Grid Import
+                vol.Optional(
+                    CONF_GRID_IMPORT_ENTITY,
+                    description={"suggested_value": opts.get(CONF_GRID_IMPORT_ENTITY)}
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain="sensor",
+                        device_class="energy",
+                    )
+                ),
+
+                # Hausverbrauch
+                vol.Optional(
+                    CONF_CONSUMPTION_ENTITY,
+                    description={"suggested_value": opts.get(CONF_CONSUMPTION_ENTITY)}
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain="sensor",
+                        device_class="energy",
+                    )
+                ),
+
+                # === PREISE ===
+
                 # Strompreis-Einheit
                 vol.Required(
                     CONF_ELECTRICITY_PRICE_UNIT,

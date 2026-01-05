@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import logging
-import time
 from datetime import datetime, date
-from collections import deque
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback, Event
@@ -32,38 +31,45 @@ CO2_FACTOR_GRID = 0.4
 
 
 class PVAmortisationController:
-    """Controller für PV-Amortisationsberechnung."""
+    """
+    Controller für PV-Amortisationsberechnung.
+
+    WICHTIG: Berechnet Ersparnisse INKREMENTELL!
+    Bei jeder Änderung der Energie-Sensoren wird die Differenz mit dem
+    AKTUELLEN Preis multipliziert und aufaddiert. So sind dynamische
+    Strompreise korrekt berücksichtigt.
+    """
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
         self.hass = hass
         self.entry = entry
 
-        # Input-Entitäten
-        self.pv_production_entity = entry.data.get(CONF_PV_PRODUCTION_ENTITY)
-        self.grid_export_entity = entry.data.get(CONF_GRID_EXPORT_ENTITY)
-        self.grid_import_entity = entry.data.get(CONF_GRID_IMPORT_ENTITY)
-        self.consumption_entity = entry.data.get(CONF_CONSUMPTION_ENTITY)
-
         # Konfigurierbare Werte (aus Options, fallback zu data)
+        # Inkl. Sensor-Entities (können nachträglich geändert werden)
         self._load_options()
 
-        # Aktuelle Sensor-Werte
+        # Aktuelle Sensor-Werte (für Delta-Berechnung)
+        self._last_pv_production_kwh: float | None = None
+        self._last_grid_export_kwh: float | None = None
+        self._last_grid_import_kwh: float | None = None
+        self._last_consumption_kwh: float | None = None
+
+        # Aktuelle Totals (werden live aktualisiert)
         self._pv_production_kwh = 0.0
         self._grid_export_kwh = 0.0
         self._grid_import_kwh = 0.0
         self._consumption_kwh = 0.0
 
-        # Berechnete Werte
-        self._self_consumption_kwh = 0.0
-        self._savings_self_consumption = 0.0
-        self._earnings_feed_in = 0.0
-        self._total_savings = 0.0
+        # INKREMENTELL berechnete Werte (werden persistent gespeichert)
+        # Diese werden bei jedem Delta mit dem aktuellen Preis berechnet
+        self._total_self_consumption_kwh = 0.0  # Aufaddierter Eigenverbrauch
+        self._total_feed_in_kwh = 0.0  # Aufaddierte Einspeisung
+        self._accumulated_savings_self = 0.0  # Aufaddierte € Ersparnis Eigenverbrauch
+        self._accumulated_earnings_feed = 0.0  # Aufaddierte € Einnahmen Einspeisung
 
-        # Historische Daten für Durchschnittsberechnungen
-        self._daily_savings_history = deque(maxlen=365)  # 1 Jahr
-        self._last_day_savings = 0.0
-        self._last_calculation_day = None
-        self._first_seen_date = None
+        # Flag ob Werte aus Restore geladen wurden
+        self._restored = False
+        self._first_seen_date: date | None = None
 
         # Listener
         self._remove_listeners = []
@@ -73,12 +79,21 @@ class PVAmortisationController:
         """Lädt Optionen aus Entry (Options überschreiben Data)."""
         opts = {**self.entry.data, **self.entry.options}
 
+        # Sensor-Entities (können nachträglich geändert werden)
+        self.pv_production_entity = opts.get(CONF_PV_PRODUCTION_ENTITY)
+        self.grid_export_entity = opts.get(CONF_GRID_EXPORT_ENTITY)
+        self.grid_import_entity = opts.get(CONF_GRID_IMPORT_ENTITY)
+        self.consumption_entity = opts.get(CONF_CONSUMPTION_ENTITY)
+
+        # Preis-Konfiguration
         self.electricity_price = opts.get(CONF_ELECTRICITY_PRICE, DEFAULT_ELECTRICITY_PRICE)
         self.electricity_price_entity = opts.get(CONF_ELECTRICITY_PRICE_ENTITY)
         self.electricity_price_unit = opts.get(CONF_ELECTRICITY_PRICE_UNIT, DEFAULT_ELECTRICITY_PRICE_UNIT)
         self.feed_in_tariff = opts.get(CONF_FEED_IN_TARIFF, DEFAULT_FEED_IN_TARIFF)
         self.feed_in_tariff_entity = opts.get(CONF_FEED_IN_TARIFF_ENTITY)
         self.feed_in_tariff_unit = opts.get(CONF_FEED_IN_TARIFF_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT)
+
+        # Kosten und Offsets
         self.installation_cost = opts.get(CONF_INSTALLATION_COST, DEFAULT_INSTALLATION_COST)
         self.savings_offset = opts.get(CONF_SAVINGS_OFFSET, DEFAULT_SAVINGS_OFFSET)
         self.energy_offset_self = opts.get(CONF_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_SELF)
@@ -118,39 +133,47 @@ class PVAmortisationController:
 
     @property
     def pv_production_kwh(self) -> float:
+        """Aktuelle PV-Produktion vom Sensor."""
         return self._pv_production_kwh
 
     @property
     def grid_export_kwh(self) -> float:
+        """Aktuelle Netzeinspeisung vom Sensor."""
         return self._grid_export_kwh
 
     @property
     def grid_import_kwh(self) -> float:
+        """Aktueller Netzbezug vom Sensor."""
         return self._grid_import_kwh
 
     @property
     def consumption_kwh(self) -> float:
+        """Aktueller Verbrauch vom Sensor."""
         return self._consumption_kwh
 
     @property
     def self_consumption_kwh(self) -> float:
-        """Eigenverbrauch inkl. Offset."""
-        return self._self_consumption_kwh + self.energy_offset_self
+        """Gesamter Eigenverbrauch (inkrementell berechnet + Offset)."""
+        return self._total_self_consumption_kwh + self.energy_offset_self
 
     @property
     def feed_in_kwh(self) -> float:
-        """Einspeisung inkl. Offset."""
-        return self._grid_export_kwh + self.energy_offset_export
+        """Gesamte Einspeisung (inkrementell berechnet + Offset)."""
+        return self._total_feed_in_kwh + self.energy_offset_export
 
     @property
     def savings_self_consumption(self) -> float:
-        """Ersparnis durch Eigenverbrauch."""
-        return self.self_consumption_kwh * self.current_electricity_price
+        """Ersparnis durch Eigenverbrauch (inkrementell berechnet + Offset-Anteil)."""
+        # Offset-Energie mit aktuellem Preis (Annäherung)
+        offset_savings = self.energy_offset_self * self.current_electricity_price
+        return self._accumulated_savings_self + offset_savings
 
     @property
     def earnings_feed_in(self) -> float:
-        """Einnahmen durch Einspeisung."""
-        return self.feed_in_kwh * self.current_feed_in_tariff
+        """Einnahmen durch Einspeisung (inkrementell berechnet + Offset-Anteil)."""
+        # Offset-Energie mit aktuellem Tarif (Annäherung)
+        offset_earnings = self.energy_offset_export * self.current_feed_in_tariff
+        return self._accumulated_earnings_feed + offset_earnings
 
     @property
     def total_savings(self) -> float:
@@ -179,14 +202,17 @@ class PVAmortisationController:
         """Eigenverbrauchsquote (%)."""
         if self._pv_production_kwh <= 0:
             return 0.0
-        return min(100.0, (self._self_consumption_kwh / self._pv_production_kwh) * 100)
+        # Aktuelle Eigenverbrauchsquote basierend auf Sensor-Totals
+        current_self = max(0.0, self._pv_production_kwh - self._grid_export_kwh)
+        return min(100.0, (current_self / self._pv_production_kwh) * 100)
 
     @property
     def autarky_rate(self) -> float:
         """Autarkiegrad (%)."""
         if self._consumption_kwh <= 0:
             return 0.0
-        return min(100.0, (self._self_consumption_kwh / self._consumption_kwh) * 100)
+        current_self = max(0.0, self._pv_production_kwh - self._grid_export_kwh)
+        return min(100.0, (current_self / self._consumption_kwh) * 100)
 
     @property
     def co2_saved_kg(self) -> float:
@@ -221,7 +247,7 @@ class PVAmortisationController:
     @property
     def average_monthly_savings(self) -> float:
         """Durchschnittliche monatliche Ersparnis."""
-        return self.average_daily_savings * 30.44  # Durchschnittliche Tage pro Monat
+        return self.average_daily_savings * 30.44
 
     @property
     def average_yearly_savings(self) -> float:
@@ -253,7 +279,6 @@ class PVAmortisationController:
     def status_text(self) -> str:
         """Status-Text für Anzeige."""
         if self.is_amortised:
-            # Berechne Gewinn seit Amortisation
             profit = self.total_savings - self.installation_cost
             return f"Amortisiert! +{profit:.2f}€ Gewinn"
         else:
@@ -271,19 +296,107 @@ class PVAmortisationController:
             except Exception as e:
                 _LOGGER.exception("Entity-Listener Fehler: %s", e)
 
-    def _recalculate(self) -> None:
-        """Berechnet alle abgeleiteten Werte neu."""
-        # Eigenverbrauch berechnen
-        if self.grid_export_entity:
-            # Eigenverbrauch = PV Produktion - Grid Export
-            self._self_consumption_kwh = max(0.0, self._pv_production_kwh - self._grid_export_kwh)
-        elif self.consumption_entity and self.grid_import_entity:
-            # Eigenverbrauch = Verbrauch - Netzbezug
-            self._self_consumption_kwh = max(0.0, self._consumption_kwh - self._grid_import_kwh)
-        else:
-            # Fallback: min(PV, Verbrauch)
-            self._self_consumption_kwh = min(self._pv_production_kwh, self._consumption_kwh)
+    def restore_state(self, data: dict[str, Any]) -> None:
+        """Stellt den gespeicherten Zustand wieder her."""
+        self._total_self_consumption_kwh = data.get("total_self_consumption_kwh", 0.0)
+        self._total_feed_in_kwh = data.get("total_feed_in_kwh", 0.0)
+        self._accumulated_savings_self = data.get("accumulated_savings_self", 0.0)
+        self._accumulated_earnings_feed = data.get("accumulated_earnings_feed", 0.0)
 
+        first_seen = data.get("first_seen_date")
+        if first_seen:
+            try:
+                self._first_seen_date = date.fromisoformat(first_seen)
+            except (ValueError, TypeError):
+                pass
+
+        self._restored = True
+        _LOGGER.info(
+            "PV Amortisation restored: %.2f kWh self, %.2f kWh feed, %.2f€ savings, %.2f€ earnings",
+            self._total_self_consumption_kwh,
+            self._total_feed_in_kwh,
+            self._accumulated_savings_self,
+            self._accumulated_earnings_feed,
+        )
+
+    def get_state_for_storage(self) -> dict[str, Any]:
+        """Gibt den zu speichernden Zustand zurück."""
+        return {
+            "total_self_consumption_kwh": self._total_self_consumption_kwh,
+            "total_feed_in_kwh": self._total_feed_in_kwh,
+            "accumulated_savings_self": self._accumulated_savings_self,
+            "accumulated_earnings_feed": self._accumulated_earnings_feed,
+            "first_seen_date": self._first_seen_date.isoformat() if self._first_seen_date else None,
+        }
+
+    def _process_energy_update(self) -> None:
+        """
+        Verarbeitet Energie-Updates INKREMENTELL.
+
+        Bei jeder Änderung der Sensor-Werte wird:
+        1. Das Delta seit dem letzten Update berechnet
+        2. Das Delta mit dem AKTUELLEN Preis multipliziert
+        3. Auf die Gesamtsumme addiert
+
+        So sind dynamische Preise korrekt berücksichtigt!
+        """
+        # Hole aktuelle Sensor-Werte
+        current_pv = self._pv_production_kwh
+        current_export = self._grid_export_kwh
+
+        # Prüfe ob wir gültige Last-Werte haben
+        if self._last_pv_production_kwh is None:
+            self._last_pv_production_kwh = current_pv
+            self._last_grid_export_kwh = current_export
+            return
+
+        # Berechne Deltas
+        delta_pv = current_pv - self._last_pv_production_kwh
+        delta_export = current_export - self._last_grid_export_kwh
+
+        # Ignoriere negative Deltas (Sensor-Reset oder Fehler)
+        if delta_pv < 0:
+            _LOGGER.debug("PV Delta negativ (%.3f), überspringe", delta_pv)
+            self._last_pv_production_kwh = current_pv
+            delta_pv = 0
+
+        if delta_export < 0:
+            _LOGGER.debug("Export Delta negativ (%.3f), überspringe", delta_export)
+            self._last_grid_export_kwh = current_export
+            delta_export = 0
+
+        # Berechne Delta Eigenverbrauch
+        # Eigenverbrauch = PV Produktion - Netzeinspeisung
+        delta_self_consumption = max(0.0, delta_pv - delta_export)
+
+        # Nur verarbeiten wenn es tatsächlich Änderungen gibt
+        if delta_self_consumption > 0 or delta_export > 0:
+            # Hole aktuelle Preise
+            price_electricity = self.current_electricity_price
+            price_feed_in = self.current_feed_in_tariff
+
+            # Berechne Ersparnis/Einnahmen für dieses Delta
+            savings_delta = delta_self_consumption * price_electricity
+            earnings_delta = delta_export * price_feed_in
+
+            # Addiere zu Gesamtsummen
+            self._total_self_consumption_kwh += delta_self_consumption
+            self._total_feed_in_kwh += delta_export
+            self._accumulated_savings_self += savings_delta
+            self._accumulated_earnings_feed += earnings_delta
+
+            _LOGGER.debug(
+                "Delta: +%.3f kWh self (%.4f€), +%.3f kWh export (%.4f€) @ %.4f€/kWh, %.4f€/kWh",
+                delta_self_consumption, savings_delta,
+                delta_export, earnings_delta,
+                price_electricity, price_feed_in,
+            )
+
+        # Update Last-Werte
+        self._last_pv_production_kwh = current_pv
+        self._last_grid_export_kwh = current_export
+
+        # Benachrichtige Entities
         self._notify_entities()
 
     @callback
@@ -305,18 +418,21 @@ class PVAmortisationController:
             self._first_seen_date = date.today()
 
         # Update entsprechenden Wert
+        changed = False
         if entity_id == self.pv_production_entity:
             self._pv_production_kwh = value
+            changed = True
         elif entity_id == self.grid_export_entity:
             self._grid_export_kwh = value
+            changed = True
         elif entity_id == self.grid_import_entity:
             self._grid_import_kwh = value
         elif entity_id == self.consumption_entity:
             self._consumption_kwh = value
-        else:
-            return  # Nicht für uns
 
-        self._recalculate()
+        # Nur bei PV oder Export Änderungen die inkrementelle Berechnung triggern
+        if changed:
+            self._process_energy_update()
 
     async def async_start(self) -> None:
         """Startet das Tracking."""
@@ -335,7 +451,11 @@ class PVAmortisationController:
                     except (ValueError, TypeError):
                         pass
 
-        self._recalculate()
+        # Initialisiere Last-Werte für Delta-Berechnung
+        self._last_pv_production_kwh = self._pv_production_kwh
+        self._last_grid_export_kwh = self._grid_export_kwh
+        self._last_grid_import_kwh = self._grid_import_kwh
+        self._last_consumption_kwh = self._consumption_kwh
 
         # Event-Listener registrieren
         @callback
@@ -345,6 +465,8 @@ class PVAmortisationController:
         self._remove_listeners.append(
             self.hass.bus.async_listen(EVENT_STATE_CHANGED, state_listener)
         )
+
+        self._notify_entities()
 
     async def async_stop(self) -> None:
         """Stoppt das Tracking."""
@@ -357,7 +479,6 @@ class PVAmortisationController:
         for key, value in kwargs.items():
             if hasattr(self, key) and value is not None:
                 setattr(self, key, value)
-        self._recalculate()
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

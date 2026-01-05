@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
+from typing import Any
+
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorDeviceClass,
@@ -9,8 +12,16 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN, DATA_CTRL, CONF_NAME
+from .const import (
+    DOMAIN, DATA_CTRL, CONF_NAME,
+    CONF_PV_PRODUCTION_ENTITY, CONF_GRID_EXPORT_ENTITY,
+    CONF_GRID_IMPORT_ENTITY, CONF_CONSUMPTION_ENTITY,
+    CONF_ELECTRICITY_PRICE_ENTITY, CONF_FEED_IN_TARIFF_ENTITY,
+)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -23,7 +34,7 @@ async def async_setup_entry(
     entities = [
         # === Haupt-Sensoren (Übersicht) ===
         AmortisationPercentSensor(ctrl, name),
-        TotalSavingsSensor(ctrl, name),
+        TotalSavingsSensor(ctrl, name),  # Dieser speichert persistent!
         RemainingCostSensor(ctrl, name),
         StatusSensor(ctrl, name),
 
@@ -57,6 +68,7 @@ async def async_setup_entry(
         CurrentElectricityPriceSensor(ctrl, name),
         CurrentFeedInTariffSensor(ctrl, name),
         InstallationCostSensor(ctrl, name),
+        ConfigurationDiagnosticSensor(ctrl, name, entry),
     ]
 
     async_add_entities(entities)
@@ -134,8 +146,13 @@ class AmortisationPercentSensor(BaseEntity):
         }
 
 
-class TotalSavingsSensor(BaseEntity):
-    """Gesamtersparnis in Euro."""
+class TotalSavingsSensor(BaseEntity, RestoreEntity):
+    """
+    Gesamtersparnis in Euro.
+
+    WICHTIG: Dieser Sensor speichert die inkrementell berechneten Werte
+    persistent, damit sie über Neustarts erhalten bleiben!
+    """
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -148,16 +165,49 @@ class TotalSavingsSensor(BaseEntity):
             device_class=SensorDeviceClass.MONETARY,
         )
 
+    async def async_added_to_hass(self):
+        """Wiederherstellen des gespeicherten Zustands."""
+        await super().async_added_to_hass()
+
+        # Versuche letzten Zustand zu laden
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in ("unknown", "unavailable"):
+            # Lade die extra_state_attributes für die vollständigen Daten
+            attrs = last_state.attributes or {}
+
+            restore_data = {
+                "total_self_consumption_kwh": attrs.get("tracked_self_consumption_kwh", 0.0),
+                "total_feed_in_kwh": attrs.get("tracked_feed_in_kwh", 0.0),
+                "accumulated_savings_self": attrs.get("accumulated_savings_self", 0.0),
+                "accumulated_earnings_feed": attrs.get("accumulated_earnings_feed", 0.0),
+                "first_seen_date": attrs.get("first_seen_date"),
+            }
+
+            self.ctrl.restore_state(restore_data)
+            _LOGGER.info("TotalSavingsSensor: Zustand wiederhergestellt")
+
     @property
     def native_value(self) -> float:
         return round(self.ctrl.total_savings, 2)
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """
+        Speichert alle wichtigen Werte als Attribute.
+        Diese werden von RestoreEntity wiederhergestellt.
+        """
         return {
             "savings_self_consumption": f"{self.ctrl.savings_self_consumption:.2f}€",
             "earnings_feed_in": f"{self.ctrl.earnings_feed_in:.2f}€",
             "offset": f"{self.ctrl.savings_offset:.2f}€",
+            # Inkrementell berechnete Werte (werden restored)
+            "tracked_self_consumption_kwh": round(self.ctrl._total_self_consumption_kwh, 4),
+            "tracked_feed_in_kwh": round(self.ctrl._total_feed_in_kwh, 4),
+            "accumulated_savings_self": round(self.ctrl._accumulated_savings_self, 4),
+            "accumulated_earnings_feed": round(self.ctrl._accumulated_earnings_feed, 4),
+            "first_seen_date": self.ctrl._first_seen_date.isoformat() if self.ctrl._first_seen_date else None,
+            # Info
+            "calculation_method": "incremental (dynamic prices supported)",
         }
 
 
@@ -231,7 +281,7 @@ class StatusSensor(BaseEntity):
 
 
 class SelfConsumptionSensor(BaseEntity):
-    """Eigenverbrauch in kWh."""
+    """Eigenverbrauch in kWh (inkrementell berechnet)."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -248,9 +298,16 @@ class SelfConsumptionSensor(BaseEntity):
     def native_value(self) -> float:
         return round(self.ctrl.self_consumption_kwh, 2)
 
+    @property
+    def extra_state_attributes(self):
+        return {
+            "tracked_kwh": round(self.ctrl._total_self_consumption_kwh, 2),
+            "offset_kwh": round(self.ctrl.energy_offset_self, 2),
+        }
+
 
 class FeedInSensor(BaseEntity):
-    """Netzeinspeisung in kWh."""
+    """Netzeinspeisung in kWh (inkrementell berechnet)."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -266,6 +323,13 @@ class FeedInSensor(BaseEntity):
     @property
     def native_value(self) -> float:
         return round(self.ctrl.feed_in_kwh, 2)
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "tracked_kwh": round(self.ctrl._total_feed_in_kwh, 2),
+            "offset_kwh": round(self.ctrl.energy_offset_export, 2),
+        }
 
 
 class PVProductionSensor(BaseEntity):
@@ -294,7 +358,7 @@ class PVProductionSensor(BaseEntity):
 
 
 class SavingsSelfConsumptionSensor(BaseEntity):
-    """Ersparnis durch Eigenverbrauch."""
+    """Ersparnis durch Eigenverbrauch (inkrementell berechnet)."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -315,12 +379,14 @@ class SavingsSelfConsumptionSensor(BaseEntity):
     def extra_state_attributes(self):
         return {
             "self_consumption_kwh": f"{self.ctrl.self_consumption_kwh:.2f} kWh",
-            "electricity_price": f"{self.ctrl.current_electricity_price:.4f} €/kWh",
+            "current_price": f"{self.ctrl.current_electricity_price:.4f} €/kWh",
+            "accumulated_savings": f"{self.ctrl._accumulated_savings_self:.2f}€",
+            "calculation": "incremental (each kWh × price at that time)",
         }
 
 
 class EarningsFeedInSensor(BaseEntity):
-    """Einnahmen durch Einspeisung."""
+    """Einnahmen durch Einspeisung (inkrementell berechnet)."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -341,7 +407,9 @@ class EarningsFeedInSensor(BaseEntity):
     def extra_state_attributes(self):
         return {
             "feed_in_kwh": f"{self.ctrl.feed_in_kwh:.2f} kWh",
-            "feed_in_tariff": f"{self.ctrl.current_feed_in_tariff:.4f} €/kWh",
+            "current_tariff": f"{self.ctrl.current_feed_in_tariff:.4f} €/kWh",
+            "accumulated_earnings": f"{self.ctrl._accumulated_earnings_feed:.2f}€",
+            "calculation": "incremental (each kWh × tariff at that time)",
         }
 
 
@@ -371,8 +439,6 @@ class SelfConsumptionRatioSensor(BaseEntity):
     def extra_state_attributes(self):
         return {
             "description": "Anteil der PV-Produktion der selbst verbraucht wird",
-            "self_consumption_kwh": f"{self.ctrl.self_consumption_kwh:.2f} kWh",
-            "pv_production_kwh": f"{self.ctrl.pv_production_kwh:.2f} kWh",
         }
 
 
@@ -397,8 +463,6 @@ class AutarkyRateSensor(BaseEntity):
     def extra_state_attributes(self):
         return {
             "description": "Anteil des Verbrauchs der durch PV gedeckt wird",
-            "self_consumption_kwh": f"{self.ctrl.self_consumption_kwh:.2f} kWh",
-            "total_consumption_kwh": f"{self.ctrl.consumption_kwh:.2f} kWh",
         }
 
 
@@ -577,8 +641,8 @@ class CO2SavedSensor(BaseEntity):
         kg = self.ctrl.co2_saved_kg
         return {
             "tonnes": f"{kg / 1000:.2f} t",
-            "trees_equivalent": int(kg / 21),  # ~21kg CO2 pro Baum/Jahr
-            "car_km_equivalent": int(kg / 0.12),  # ~120g CO2 pro km
+            "trees_equivalent": int(kg / 21),
+            "car_km_equivalent": int(kg / 0.12),
         }
 
 
@@ -609,7 +673,8 @@ class CurrentElectricityPriceSensor(BaseEntity):
     def extra_state_attributes(self):
         return {
             "source": "sensor" if self.ctrl.electricity_price_entity else "config",
-            "config_value": f"{self.ctrl.electricity_price:.4f} €/kWh",
+            "config_value": f"{self.ctrl.electricity_price:.4f}",
+            "unit_config": self.ctrl.electricity_price_unit,
         }
 
 
@@ -635,7 +700,8 @@ class CurrentFeedInTariffSensor(BaseEntity):
     def extra_state_attributes(self):
         return {
             "source": "sensor" if self.ctrl.feed_in_tariff_entity else "config",
-            "config_value": f"{self.ctrl.feed_in_tariff:.4f} €/kWh",
+            "config_value": f"{self.ctrl.feed_in_tariff:.4f}",
+            "unit_config": self.ctrl.feed_in_tariff_unit,
         }
 
 
@@ -656,3 +722,125 @@ class InstallationCostSensor(BaseEntity):
     @property
     def native_value(self) -> float:
         return round(self.ctrl.installation_cost, 2)
+
+
+class ConfigurationDiagnosticSensor(BaseEntity):
+    """Diagnose-Sensor zeigt alle konfigurierten Sensoren und deren Status."""
+
+    def __init__(self, ctrl, name: str, entry: ConfigEntry):
+        super().__init__(
+            ctrl,
+            name,
+            "Konfiguration",
+            icon="mdi:cog",
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+        self._entry = entry
+
+    def _get_entity_status(self, entity_id: str | None) -> dict[str, Any]:
+        """Holt Status einer Entity."""
+        if not entity_id:
+            return {"configured": False, "entity_id": None, "state": None, "status": "nicht konfiguriert"}
+
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return {
+                "configured": True,
+                "entity_id": entity_id,
+                "state": None,
+                "status": "nicht gefunden",
+            }
+        elif state.state in ("unavailable", "unknown"):
+            return {
+                "configured": True,
+                "entity_id": entity_id,
+                "state": state.state,
+                "status": "nicht verfügbar",
+            }
+        else:
+            return {
+                "configured": True,
+                "entity_id": entity_id,
+                "state": state.state,
+                "status": "OK",
+            }
+
+    @property
+    def native_value(self) -> str:
+        """Zeigt Gesamtstatus der Konfiguration."""
+        issues = 0
+
+        # Prüfe alle konfigurierten Sensoren
+        entities_to_check = [
+            self.ctrl.pv_production_entity,
+            self.ctrl.grid_export_entity,
+        ]
+
+        for entity_id in entities_to_check:
+            if entity_id:
+                status = self._get_entity_status(entity_id)
+                if status["status"] != "OK":
+                    issues += 1
+
+        if issues == 0:
+            return "OK"
+        else:
+            return f"{issues} Problem{'e' if issues > 1 else ''}"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Zeigt alle konfigurierten Sensoren und deren Status."""
+        pv_status = self._get_entity_status(self.ctrl.pv_production_entity)
+        export_status = self._get_entity_status(self.ctrl.grid_export_entity)
+        import_status = self._get_entity_status(self.ctrl.grid_import_entity)
+        consumption_status = self._get_entity_status(self.ctrl.consumption_entity)
+        price_status = self._get_entity_status(self.ctrl.electricity_price_entity)
+        tariff_status = self._get_entity_status(self.ctrl.feed_in_tariff_entity)
+
+        return {
+            # Hauptsensoren
+            "pv_production_entity": pv_status["entity_id"],
+            "pv_production_status": pv_status["status"],
+            "pv_production_value": pv_status["state"],
+
+            "grid_export_entity": export_status["entity_id"],
+            "grid_export_status": export_status["status"],
+            "grid_export_value": export_status["state"],
+
+            "grid_import_entity": import_status["entity_id"],
+            "grid_import_status": import_status["status"],
+            "grid_import_value": import_status["state"],
+
+            "consumption_entity": consumption_status["entity_id"],
+            "consumption_status": consumption_status["status"],
+            "consumption_value": consumption_status["state"],
+
+            # Preissensoren (optional)
+            "electricity_price_entity": price_status["entity_id"],
+            "electricity_price_status": price_status["status"],
+            "electricity_price_value": price_status["state"],
+            "electricity_price_source": "sensor" if self.ctrl.electricity_price_entity else "config",
+
+            "feed_in_tariff_entity": tariff_status["entity_id"],
+            "feed_in_tariff_status": tariff_status["status"],
+            "feed_in_tariff_value": tariff_status["state"],
+            "feed_in_tariff_source": "sensor" if self.ctrl.feed_in_tariff_entity else "config",
+
+            # Berechnungsmethode
+            "calculation_method": "incremental",
+            "supports_dynamic_prices": True,
+            "supports_battery": True,
+
+            # Tracking-Status
+            "tracking_active": self.ctrl._first_seen_date is not None,
+            "first_seen_date": self.ctrl._first_seen_date.isoformat() if self.ctrl._first_seen_date else None,
+            "data_restored": self.ctrl._restored,
+        }
+
+    @property
+    def icon(self) -> str:
+        """Icon basierend auf Status."""
+        if self.native_value == "OK":
+            return "mdi:check-circle"
+        else:
+            return "mdi:alert-circle"
