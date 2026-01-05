@@ -364,9 +364,15 @@ class PVManagementController:
                 price = None
 
                 if isinstance(entry, dict):
-                    # Format: {"start_time": "2024-01-05T14:00:00", "price_eur_per_kwh": 0.15}
-                    start_time = entry.get("start_time") or entry.get("start") or entry.get("time")
-                    price = entry.get("price_eur_per_kwh") or entry.get("price") or entry.get("total_price")
+                    # Verschiedene EPEX Formate unterstützen
+                    start_time = entry.get("start_time") or entry.get("start") or entry.get("time") or entry.get("datetime")
+                    price = (
+                        entry.get("price_per_kwh") or      # EPEX Spot Data Integration
+                        entry.get("price_eur_per_kwh") or  # Alternatives Format
+                        entry.get("price") or              # Generisch
+                        entry.get("total_price") or        # Mit Steuern
+                        entry.get("marketprice")           # Awattar Format (ct/kWh)
+                    )
 
                     if start_time and price is not None:
                         try:
