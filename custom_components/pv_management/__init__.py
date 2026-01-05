@@ -126,8 +126,24 @@ class PVManagementController:
         self.price_low_threshold = opts.get(CONF_PRICE_LOW_THRESHOLD, DEFAULT_PRICE_LOW_THRESHOLD)
         self.pv_power_high = opts.get(CONF_PV_POWER_HIGH, DEFAULT_PV_POWER_HIGH)
 
-    def _convert_price_to_eur(self, price: float, unit: str) -> float:
-        """Konvertiert Preis zu Euro/kWh (von Cent falls nötig)."""
+    def _convert_price_to_eur(self, price: float, unit: str, auto_detect: bool = False) -> float:
+        """
+        Konvertiert Preis zu Euro/kWh (von Cent falls nötig).
+
+        Bei auto_detect=True wird anhand des Wertes erkannt:
+        - Wert > 1.0 → wahrscheinlich Cent/kWh → durch 100 teilen
+        - Wert <= 1.0 → wahrscheinlich Euro/kWh → direkt verwenden
+        """
+        if auto_detect:
+            # Automatische Erkennung: Werte > 1 sind vermutlich in Cent
+            if price > 1.0:
+                _LOGGER.debug("Auto-detect: Preis %.2f > 1, interpretiere als Cent/kWh", price)
+                return price / 100.0
+            else:
+                _LOGGER.debug("Auto-detect: Preis %.4f <= 1, interpretiere als Euro/kWh", price)
+                return price
+
+        # Manuelle Einstellung
         if unit == PRICE_UNIT_CENT:
             return price / 100.0
         return price
@@ -155,9 +171,9 @@ class PVManagementController:
         Aktueller Strompreis in €/kWh.
 
         Fallback-Kette:
-        1. Aktueller Sensor-Wert (wenn verfügbar)
+        1. Aktueller Sensor-Wert (wenn verfügbar) - AUTO-DETECT Euro/Cent
         2. Letzter bekannter Sensor-Wert (gecached)
-        3. Konfigurierter Standardpreis
+        3. Konfigurierter Standardpreis (mit manueller Einheit)
         """
         if self.electricity_price_entity:
             raw_price, is_available = self._get_entity_value(
@@ -166,21 +182,21 @@ class PVManagementController:
             self._price_sensor_available = is_available
 
             if is_available:
-                # Sensor verfügbar - verwende und cache
+                # Sensor verfügbar - AUTO-DETECT ob Euro oder Cent
                 self._last_known_electricity_price = raw_price
-                return self._convert_price_to_eur(raw_price, self.electricity_price_unit)
+                return self._convert_price_to_eur(raw_price, self.electricity_price_unit, auto_detect=True)
             elif self._last_known_electricity_price is not None:
                 # Sensor nicht verfügbar, aber wir haben einen gecachten Wert
                 _LOGGER.debug("Strompreis-Sensor nicht verfügbar, verwende letzten bekannten Wert")
-                return self._convert_price_to_eur(self._last_known_electricity_price, self.electricity_price_unit)
+                return self._convert_price_to_eur(self._last_known_electricity_price, self.electricity_price_unit, auto_detect=True)
             else:
-                # Kein gecachter Wert, verwende Config-Fallback
+                # Kein gecachter Wert, verwende Config-Fallback (manuelle Einheit)
                 _LOGGER.warning("Strompreis-Sensor nicht verfügbar, verwende Konfigurationswert")
-                return self._convert_price_to_eur(self.electricity_price, self.electricity_price_unit)
+                return self._convert_price_to_eur(self.electricity_price, self.electricity_price_unit, auto_detect=False)
         else:
-            # Kein Sensor konfiguriert, verwende Config-Wert
+            # Kein Sensor konfiguriert, verwende Config-Wert (manuelle Einheit)
             self._price_sensor_available = True
-            return self._convert_price_to_eur(self.electricity_price, self.electricity_price_unit)
+            return self._convert_price_to_eur(self.electricity_price, self.electricity_price_unit, auto_detect=False)
 
     @property
     def current_feed_in_tariff(self) -> float:
@@ -188,6 +204,7 @@ class PVManagementController:
         Aktuelle Einspeisevergütung in €/kWh.
 
         Fallback-Kette wie bei current_electricity_price.
+        AUTO-DETECT für Sensor-Werte, manuelle Einheit für Fallback.
         """
         if self.feed_in_tariff_entity:
             raw_tariff, is_available = self._get_entity_value(
@@ -197,16 +214,16 @@ class PVManagementController:
 
             if is_available:
                 self._last_known_feed_in_tariff = raw_tariff
-                return self._convert_price_to_eur(raw_tariff, self.feed_in_tariff_unit)
+                return self._convert_price_to_eur(raw_tariff, self.feed_in_tariff_unit, auto_detect=True)
             elif self._last_known_feed_in_tariff is not None:
                 _LOGGER.debug("Einspeise-Tarif-Sensor nicht verfügbar, verwende letzten bekannten Wert")
-                return self._convert_price_to_eur(self._last_known_feed_in_tariff, self.feed_in_tariff_unit)
+                return self._convert_price_to_eur(self._last_known_feed_in_tariff, self.feed_in_tariff_unit, auto_detect=True)
             else:
                 _LOGGER.warning("Einspeise-Tarif-Sensor nicht verfügbar, verwende Konfigurationswert")
-                return self._convert_price_to_eur(self.feed_in_tariff, self.feed_in_tariff_unit)
+                return self._convert_price_to_eur(self.feed_in_tariff, self.feed_in_tariff_unit, auto_detect=False)
         else:
             self._tariff_sensor_available = True
-            return self._convert_price_to_eur(self.feed_in_tariff, self.feed_in_tariff_unit)
+            return self._convert_price_to_eur(self.feed_in_tariff, self.feed_in_tariff_unit, auto_detect=False)
 
     @property
     def electricity_price_source(self) -> str:

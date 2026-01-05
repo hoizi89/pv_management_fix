@@ -676,12 +676,14 @@ class CurrentElectricityPriceSensor(BaseEntity):
 
     @property
     def extra_state_attributes(self):
+        raw = self.ctrl._last_known_electricity_price
         return {
             "source": self.ctrl.electricity_price_source,
             "sensor_available": self.ctrl._price_sensor_available,
-            "config_value": f"{self.ctrl.electricity_price:.4f}",
-            "unit_config": self.ctrl.electricity_price_unit,
-            "last_cached": f"{self.ctrl._last_known_electricity_price:.4f}" if self.ctrl._last_known_electricity_price else None,
+            "raw_sensor_value": f"{raw:.4f}" if raw else None,
+            "auto_detected_unit": "cent" if raw and raw > 1.0 else "euro" if raw else None,
+            "config_fallback": f"{self.ctrl.electricity_price:.4f}",
+            "config_unit": self.ctrl.electricity_price_unit,
         }
 
 
@@ -705,12 +707,14 @@ class CurrentFeedInTariffSensor(BaseEntity):
 
     @property
     def extra_state_attributes(self):
+        raw = self.ctrl._last_known_feed_in_tariff
         return {
             "source": self.ctrl.feed_in_tariff_source,
             "sensor_available": self.ctrl._tariff_sensor_available,
-            "config_value": f"{self.ctrl.feed_in_tariff:.4f}",
-            "unit_config": self.ctrl.feed_in_tariff_unit,
-            "last_cached": f"{self.ctrl._last_known_feed_in_tariff:.4f}" if self.ctrl._last_known_feed_in_tariff else None,
+            "raw_sensor_value": f"{raw:.4f}" if raw else None,
+            "auto_detected_unit": "cent" if raw and raw > 1.0 else "euro" if raw else None,
+            "config_fallback": f"{self.ctrl.feed_in_tariff:.4f}",
+            "config_unit": self.ctrl.feed_in_tariff_unit,
         }
 
 
