@@ -826,25 +826,44 @@ class PVManagementController:
 
     def restore_state(self, data: dict[str, Any]) -> None:
         """Stellt den gespeicherten Zustand wieder her."""
-        self._total_self_consumption_kwh = data.get("total_self_consumption_kwh", 0.0)
-        self._total_feed_in_kwh = data.get("total_feed_in_kwh", 0.0)
-        self._accumulated_savings_self = data.get("accumulated_savings_self", 0.0)
-        self._accumulated_earnings_feed = data.get("accumulated_earnings_feed", 0.0)
+        # Sichere Float-Konvertierung
+        def safe_float(val, default=0.0):
+            try:
+                return float(val) if val is not None else default
+            except (ValueError, TypeError):
+                return default
+
+        self._total_self_consumption_kwh = safe_float(data.get("total_self_consumption_kwh"))
+        self._total_feed_in_kwh = safe_float(data.get("total_feed_in_kwh"))
+        self._accumulated_savings_self = safe_float(data.get("accumulated_savings_self"))
+        self._accumulated_earnings_feed = safe_float(data.get("accumulated_earnings_feed"))
 
         first_seen = data.get("first_seen_date")
         if first_seen:
             try:
-                self._first_seen_date = date.fromisoformat(first_seen)
-            except (ValueError, TypeError):
-                pass
+                if isinstance(first_seen, str):
+                    self._first_seen_date = date.fromisoformat(first_seen)
+                elif isinstance(first_seen, date):
+                    self._first_seen_date = first_seen
+            except (ValueError, TypeError) as e:
+                _LOGGER.warning("Konnte first_seen_date nicht parsen: %s", e)
+
+        # Validierung: Werte sollten plausibel sein
+        if self._total_self_consumption_kwh < 0:
+            _LOGGER.warning("Negativer Eigenverbrauch restored, setze auf 0")
+            self._total_self_consumption_kwh = 0.0
+        if self._total_feed_in_kwh < 0:
+            _LOGGER.warning("Negative Einspeisung restored, setze auf 0")
+            self._total_feed_in_kwh = 0.0
 
         self._restored = True
         _LOGGER.info(
-            "PV Management restored: %.2f kWh self, %.2f kWh feed, %.2f€ savings, %.2f€ earnings",
+            "PV Management restored: %.2f kWh self, %.2f kWh feed, %.2f€ savings, %.2f€ earnings, first_seen=%s",
             self._total_self_consumption_kwh,
             self._total_feed_in_kwh,
             self._accumulated_savings_self,
             self._accumulated_earnings_feed,
+            self._first_seen_date,
         )
 
     def _initialize_from_sensors(self) -> None:

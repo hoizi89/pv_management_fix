@@ -185,13 +185,28 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
             # Lade die extra_state_attributes für die vollständigen Daten
             attrs = last_state.attributes or {}
 
+            # Explizite Float-Konvertierung (HA speichert manchmal als String)
+            def safe_float(val, default=0.0):
+                try:
+                    return float(val) if val is not None else default
+                except (ValueError, TypeError):
+                    return default
+
             restore_data = {
-                "total_self_consumption_kwh": attrs.get("tracked_self_consumption_kwh", 0.0),
-                "total_feed_in_kwh": attrs.get("tracked_feed_in_kwh", 0.0),
-                "accumulated_savings_self": attrs.get("accumulated_savings_self", 0.0),
-                "accumulated_earnings_feed": attrs.get("accumulated_earnings_feed", 0.0),
+                "total_self_consumption_kwh": safe_float(attrs.get("tracked_self_consumption_kwh")),
+                "total_feed_in_kwh": safe_float(attrs.get("tracked_feed_in_kwh")),
+                "accumulated_savings_self": safe_float(attrs.get("accumulated_savings_self")),
+                "accumulated_earnings_feed": safe_float(attrs.get("accumulated_earnings_feed")),
                 "first_seen_date": attrs.get("first_seen_date"),
             }
+
+            _LOGGER.info(
+                "TotalSavingsSensor: Restore data: self=%.2f kWh, feed=%.2f kWh, savings=%.2f€, earnings=%.2f€",
+                restore_data["total_self_consumption_kwh"],
+                restore_data["total_feed_in_kwh"],
+                restore_data["accumulated_savings_self"],
+                restore_data["accumulated_earnings_feed"],
+            )
 
             self.ctrl.restore_state(restore_data)
             _LOGGER.info("TotalSavingsSensor: Zustand wiederhergestellt")
