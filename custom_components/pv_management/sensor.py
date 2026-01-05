@@ -812,7 +812,7 @@ class ConfigurationDiagnosticSensor(BaseEntity):
         tariff_status = self._get_entity_status(self.ctrl.feed_in_tariff_entity)
 
         return {
-            # Hauptsensoren
+            # === SENSOR-KONFIGURATION ===
             "pv_production_entity": pv_status["entity_id"],
             "pv_production_status": pv_status["status"],
             "pv_production_value": pv_status["state"],
@@ -840,15 +840,42 @@ class ConfigurationDiagnosticSensor(BaseEntity):
             "feed_in_tariff_value": tariff_status["state"],
             "feed_in_tariff_source": "sensor" if self.ctrl.feed_in_tariff_entity else "config",
 
-            # Berechnungsmethode
-            "calculation_method": "incremental",
-            "supports_dynamic_prices": True,
-            "supports_battery": True,
+            # === AKKUMULIERTE WERTE (diese werden gespeichert) ===
+            "tracked_self_consumption_kwh": round(self.ctrl._total_self_consumption_kwh, 4),
+            "tracked_feed_in_kwh": round(self.ctrl._total_feed_in_kwh, 4),
+            "accumulated_savings_self_eur": round(self.ctrl._accumulated_savings_self, 4),
+            "accumulated_earnings_feed_eur": round(self.ctrl._accumulated_earnings_feed, 4),
 
-            # Tracking-Status
+            # === LETZTE SENSOR-WERTE (für Delta-Berechnung) ===
+            "last_pv_production_kwh": self.ctrl._last_pv_production_kwh,
+            "last_grid_export_kwh": self.ctrl._last_grid_export_kwh,
+
+            # === AKTUELLE SENSOR-WERTE ===
+            "current_pv_production_kwh": round(self.ctrl._pv_production_kwh, 4),
+            "current_grid_export_kwh": round(self.ctrl._grid_export_kwh, 4),
+            "current_grid_import_kwh": round(self.ctrl._grid_import_kwh, 4),
+            "current_consumption_kwh": round(self.ctrl._consumption_kwh, 4),
+
+            # === OFFSETS (aus Konfiguration) ===
+            "offset_self_consumption_kwh": self.ctrl.energy_offset_self,
+            "offset_feed_in_kwh": self.ctrl.energy_offset_export,
+            "offset_savings_eur": self.ctrl.savings_offset,
+
+            # === BERECHNETE WERTE ===
+            "total_self_consumption_kwh": round(self.ctrl.self_consumption_kwh, 4),
+            "total_feed_in_kwh": round(self.ctrl.feed_in_kwh, 4),
+            "total_savings_eur": round(self.ctrl.total_savings, 4),
+
+            # === PREISE ===
+            "current_electricity_price_eur": round(self.ctrl.current_electricity_price, 4),
+            "current_feed_in_tariff_eur": round(self.ctrl.current_feed_in_tariff, 4),
+
+            # === META ===
             "tracking_active": self.ctrl._first_seen_date is not None,
             "first_seen_date": self.ctrl._first_seen_date.isoformat() if self.ctrl._first_seen_date else None,
+            "days_tracked": self.ctrl.days_since_installation,
             "data_restored": self.ctrl._restored,
+            "calculation_method": "incremental",
         }
 
     @property
