@@ -1,0 +1,13 @@
+{
+  "domain": "pv_management",
+  "name": "PV Management",
+  "version": "2.0.0",
+  "documentation": "https://github.com/hoizi89/pv_management",
+  "issue_tracker": "https://github.com/hoizi89/pv_management/issues",
+  "requirements": [],
+  "codeowners": ["@hoizi89"],
+  "iot_class": "local_push",
+  "loggers": ["custom_components.pv_management"],
+  "integration_type": "hub",
+  "config_flow": true
+}

@@ -19,6 +19,8 @@ from .const import (
     CONF_PV_PRODUCTION_ENTITY, CONF_GRID_EXPORT_ENTITY,
     CONF_GRID_IMPORT_ENTITY, CONF_CONSUMPTION_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY, CONF_FEED_IN_TARIFF_ENTITY,
+    CONF_BATTERY_SOC_ENTITY, CONF_PV_POWER_ENTITY, CONF_PV_FORECAST_ENTITY,
+    RECOMMENDATION_GREEN, RECOMMENDATION_YELLOW, RECOMMENDATION_RED,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,7 +31,7 @@ async def async_setup_entry(
 ):
     """Setup der Sensoren."""
     ctrl = hass.data[DOMAIN][entry.entry_id][DATA_CTRL]
-    name = entry.data.get(CONF_NAME, "PV Amortisation")
+    name = entry.data.get(CONF_NAME, "PV Management")
 
     entities = [
         # === Haupt-Sensoren (Übersicht) ===
@@ -37,6 +39,9 @@ async def async_setup_entry(
         TotalSavingsSensor(ctrl, name),  # Dieser speichert persistent!
         RemainingCostSensor(ctrl, name),
         StatusSensor(ctrl, name),
+
+        # === EMPFEHLUNG (AMPEL) ===
+        ConsumptionRecommendationSensor(ctrl, name),
 
         # === Energie-Sensoren ===
         SelfConsumptionSensor(ctrl, name),
@@ -103,7 +108,7 @@ class BaseEntity(SensorEntity):
             identifiers={(DOMAIN, name)},
             name=name,
             manufacturer="Custom",
-            model="PV Amortisation Tracker",
+            model="PV Management",
         )
 
     async def async_added_to_hass(self):
@@ -672,9 +677,11 @@ class CurrentElectricityPriceSensor(BaseEntity):
     @property
     def extra_state_attributes(self):
         return {
-            "source": "sensor" if self.ctrl.electricity_price_entity else "config",
+            "source": self.ctrl.electricity_price_source,
+            "sensor_available": self.ctrl._price_sensor_available,
             "config_value": f"{self.ctrl.electricity_price:.4f}",
             "unit_config": self.ctrl.electricity_price_unit,
+            "last_cached": f"{self.ctrl._last_known_electricity_price:.4f}" if self.ctrl._last_known_electricity_price else None,
         }
 
 
@@ -699,9 +706,11 @@ class CurrentFeedInTariffSensor(BaseEntity):
     @property
     def extra_state_attributes(self):
         return {
-            "source": "sensor" if self.ctrl.feed_in_tariff_entity else "config",
+            "source": self.ctrl.feed_in_tariff_source,
+            "sensor_available": self.ctrl._tariff_sensor_available,
             "config_value": f"{self.ctrl.feed_in_tariff:.4f}",
             "unit_config": self.ctrl.feed_in_tariff_unit,
+            "last_cached": f"{self.ctrl._last_known_feed_in_tariff:.4f}" if self.ctrl._last_known_feed_in_tariff else None,
         }
 
 
@@ -844,3 +853,99 @@ class ConfigurationDiagnosticSensor(BaseEntity):
             return "mdi:check-circle"
         else:
             return "mdi:alert-circle"
+
+
+# =============================================================================
+# EMPFEHLUNGS-SENSOR (AMPEL)
+# =============================================================================
+
+
+class ConsumptionRecommendationSensor(BaseEntity):
+    """
+    Stromverbrauch-Empfehlung als Ampel.
+
+    Zeigt an, ob jetzt ein guter Zeitpunkt ist, Strom zu verbrauchen.
+    Basiert auf: PV-Leistung, Batterie, Strompreis, Tageszeit, Prognose.
+    """
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Verbrauchsempfehlung",
+            icon="mdi:traffic-light",
+        )
+
+    @property
+    def native_value(self) -> str:
+        """Zeigt Empfehlungstext."""
+        return self.ctrl.consumption_recommendation_text
+
+    @property
+    def icon(self) -> str:
+        """Icon als Ampel-Farbe."""
+        rec = self.ctrl.consumption_recommendation
+        if rec == RECOMMENDATION_GREEN:
+            return "mdi:circle"
+        elif rec == RECOMMENDATION_RED:
+            return "mdi:circle"
+        else:
+            return "mdi:circle"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Detaillierte Infos zur Empfehlung."""
+        rec = self.ctrl.consumption_recommendation
+        score = self.ctrl.consumption_recommendation_score
+
+        attrs = {
+            "ampel": rec,
+            "score": score,
+            "score_explanation": self._get_score_explanation(score),
+        }
+
+        # Aktuelle Werte die in die Berechnung einfließen
+        attrs["pv_power_w"] = round(self.ctrl.pv_power, 0)
+        attrs["pv_power_threshold_w"] = self.ctrl.pv_power_high
+
+        if self.ctrl.battery_soc_entity:
+            attrs["battery_soc"] = f"{self.ctrl.battery_soc:.0f}%"
+            attrs["battery_soc_high"] = f"{self.ctrl.battery_soc_high:.0f}%"
+            attrs["battery_soc_low"] = f"{self.ctrl.battery_soc_low:.0f}%"
+
+        attrs["electricity_price"] = f"{self.ctrl.current_electricity_price:.4f} €/kWh"
+        attrs["price_low_threshold"] = f"{self.ctrl.price_low_threshold:.2f} €/kWh"
+        attrs["price_high_threshold"] = f"{self.ctrl.price_high_threshold:.2f} €/kWh"
+
+        if self.ctrl.pv_forecast_entity:
+            attrs["pv_forecast_kwh"] = round(self.ctrl.pv_forecast, 1)
+
+        from datetime import datetime
+        attrs["hour"] = datetime.now().hour
+
+        return attrs
+
+    def _get_score_explanation(self, score: int) -> str:
+        """Erklärt den Score."""
+        if score >= 5:
+            return "Idealer Zeitpunkt!"
+        elif score >= 3:
+            return "Guter Zeitpunkt"
+        elif score >= 1:
+            return "Akzeptabel"
+        elif score >= -1:
+            return "Neutral"
+        elif score >= -3:
+            return "Eher ungünstig"
+        else:
+            return "Schlechter Zeitpunkt"
+
+    @property
+    def entity_picture(self) -> str | None:
+        """Gibt URL für Ampelbild zurück (optional)."""
+        return None
+
+    @property
+    def available(self) -> bool:
+        """Sensor ist immer verfügbar."""
+        return True

@@ -12,16 +12,22 @@ from .const import (
     DOMAIN, DATA_CTRL, PLATFORMS,
     CONF_PV_PRODUCTION_ENTITY, CONF_GRID_EXPORT_ENTITY,
     CONF_GRID_IMPORT_ENTITY, CONF_CONSUMPTION_ENTITY,
+    CONF_BATTERY_SOC_ENTITY, CONF_PV_POWER_ENTITY, CONF_PV_FORECAST_ENTITY,
     CONF_ELECTRICITY_PRICE, CONF_ELECTRICITY_PRICE_ENTITY, CONF_ELECTRICITY_PRICE_UNIT,
     CONF_FEED_IN_TARIFF, CONF_FEED_IN_TARIFF_ENTITY, CONF_FEED_IN_TARIFF_UNIT,
     CONF_INSTALLATION_COST, CONF_SAVINGS_OFFSET,
     CONF_ENERGY_OFFSET_SELF, CONF_ENERGY_OFFSET_EXPORT,
     CONF_INSTALLATION_DATE,
+    CONF_BATTERY_SOC_HIGH, CONF_BATTERY_SOC_LOW,
+    CONF_PRICE_HIGH_THRESHOLD, CONF_PRICE_LOW_THRESHOLD, CONF_PV_POWER_HIGH,
     DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
+    DEFAULT_BATTERY_SOC_HIGH, DEFAULT_BATTERY_SOC_LOW,
+    DEFAULT_PRICE_HIGH_THRESHOLD, DEFAULT_PRICE_LOW_THRESHOLD, DEFAULT_PV_POWER_HIGH,
     PRICE_UNIT_CENT,
+    RECOMMENDATION_GREEN, RECOMMENDATION_YELLOW, RECOMMENDATION_RED,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,14 +36,13 @@ _LOGGER = logging.getLogger(__name__)
 CO2_FACTOR_GRID = 0.4
 
 
-class PVAmortisationController:
+class PVManagementController:
     """
-    Controller für PV-Amortisationsberechnung.
+    Controller für PV-Management.
 
-    WICHTIG: Berechnet Ersparnisse INKREMENTELL!
-    Bei jeder Änderung der Energie-Sensoren wird die Differenz mit dem
-    AKTUELLEN Preis multipliziert und aufaddiert. So sind dynamische
-    Strompreise korrekt berücksichtigt.
+    Features:
+    - Amortisationsberechnung (inkrementell für dynamische Preise)
+    - Stromverbrauch-Empfehlung (Ampel basierend auf PV, Batterie, Preis)
     """
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
@@ -45,7 +50,6 @@ class PVAmortisationController:
         self.entry = entry
 
         # Konfigurierbare Werte (aus Options, fallback zu data)
-        # Inkl. Sensor-Entities (können nachträglich geändert werden)
         self._load_options()
 
         # Aktuelle Sensor-Werte (für Delta-Berechnung)
@@ -60,12 +64,22 @@ class PVAmortisationController:
         self._grid_import_kwh = 0.0
         self._consumption_kwh = 0.0
 
+        # Aktuelle Live-Werte für Empfehlung
+        self._battery_soc = 0.0  # %
+        self._pv_power = 0.0     # W
+        self._pv_forecast = 0.0  # kWh
+
+        # Letzte bekannte Preise (für Fallback wenn Sensor temporär nicht verfügbar)
+        self._last_known_electricity_price: float | None = None
+        self._last_known_feed_in_tariff: float | None = None
+        self._price_sensor_available = True
+        self._tariff_sensor_available = True
+
         # INKREMENTELL berechnete Werte (werden persistent gespeichert)
-        # Diese werden bei jedem Delta mit dem aktuellen Preis berechnet
-        self._total_self_consumption_kwh = 0.0  # Aufaddierter Eigenverbrauch
-        self._total_feed_in_kwh = 0.0  # Aufaddierte Einspeisung
-        self._accumulated_savings_self = 0.0  # Aufaddierte € Ersparnis Eigenverbrauch
-        self._accumulated_earnings_feed = 0.0  # Aufaddierte € Einnahmen Einspeisung
+        self._total_self_consumption_kwh = 0.0
+        self._total_feed_in_kwh = 0.0
+        self._accumulated_savings_self = 0.0
+        self._accumulated_earnings_feed = 0.0
 
         # Flag ob Werte aus Restore geladen wurden
         self._restored = False
@@ -85,6 +99,11 @@ class PVAmortisationController:
         self.grid_import_entity = opts.get(CONF_GRID_IMPORT_ENTITY)
         self.consumption_entity = opts.get(CONF_CONSUMPTION_ENTITY)
 
+        # Neue Entities für Empfehlungslogik
+        self.battery_soc_entity = opts.get(CONF_BATTERY_SOC_ENTITY)
+        self.pv_power_entity = opts.get(CONF_PV_POWER_ENTITY)
+        self.pv_forecast_entity = opts.get(CONF_PV_FORECAST_ENTITY)
+
         # Preis-Konfiguration
         self.electricity_price = opts.get(CONF_ELECTRICITY_PRICE, DEFAULT_ELECTRICITY_PRICE)
         self.electricity_price_entity = opts.get(CONF_ELECTRICITY_PRICE_ENTITY)
@@ -100,36 +119,133 @@ class PVAmortisationController:
         self.energy_offset_export = opts.get(CONF_ENERGY_OFFSET_EXPORT, DEFAULT_ENERGY_OFFSET_EXPORT)
         self.installation_date = opts.get(CONF_INSTALLATION_DATE)
 
+        # Empfehlungs-Schwellwerte
+        self.battery_soc_high = opts.get(CONF_BATTERY_SOC_HIGH, DEFAULT_BATTERY_SOC_HIGH)
+        self.battery_soc_low = opts.get(CONF_BATTERY_SOC_LOW, DEFAULT_BATTERY_SOC_LOW)
+        self.price_high_threshold = opts.get(CONF_PRICE_HIGH_THRESHOLD, DEFAULT_PRICE_HIGH_THRESHOLD)
+        self.price_low_threshold = opts.get(CONF_PRICE_LOW_THRESHOLD, DEFAULT_PRICE_LOW_THRESHOLD)
+        self.pv_power_high = opts.get(CONF_PV_POWER_HIGH, DEFAULT_PV_POWER_HIGH)
+
     def _convert_price_to_eur(self, price: float, unit: str) -> float:
         """Konvertiert Preis zu Euro/kWh (von Cent falls nötig)."""
         if unit == PRICE_UNIT_CENT:
             return price / 100.0
         return price
 
-    def _get_dynamic_price(self, entity_id: str | None, fallback: float) -> float:
-        """Holt dynamischen Preis von Sensor oder verwendet Fallback."""
+    def _get_entity_value(self, entity_id: str | None, fallback: float = 0.0) -> tuple[float, bool]:
+        """
+        Holt Wert von Entity oder verwendet Fallback.
+
+        Returns: (value, is_available)
+        """
         if not entity_id:
-            return fallback
+            return fallback, True  # Config-Wert ist immer "verfügbar"
 
         state = self.hass.states.get(entity_id)
         if state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             try:
-                return float(state.state)
+                return float(state.state), True
             except (ValueError, TypeError):
                 pass
-        return fallback
+        return fallback, False
 
     @property
     def current_electricity_price(self) -> float:
-        """Aktueller Strompreis in €/kWh (dynamisch oder statisch, konvertiert von Cent falls nötig)."""
-        raw_price = self._get_dynamic_price(self.electricity_price_entity, self.electricity_price)
-        return self._convert_price_to_eur(raw_price, self.electricity_price_unit)
+        """
+        Aktueller Strompreis in €/kWh.
+
+        Fallback-Kette:
+        1. Aktueller Sensor-Wert (wenn verfügbar)
+        2. Letzter bekannter Sensor-Wert (gecached)
+        3. Konfigurierter Standardpreis
+        """
+        if self.electricity_price_entity:
+            raw_price, is_available = self._get_entity_value(
+                self.electricity_price_entity, self.electricity_price
+            )
+            self._price_sensor_available = is_available
+
+            if is_available:
+                # Sensor verfügbar - verwende und cache
+                self._last_known_electricity_price = raw_price
+                return self._convert_price_to_eur(raw_price, self.electricity_price_unit)
+            elif self._last_known_electricity_price is not None:
+                # Sensor nicht verfügbar, aber wir haben einen gecachten Wert
+                _LOGGER.debug("Strompreis-Sensor nicht verfügbar, verwende letzten bekannten Wert")
+                return self._convert_price_to_eur(self._last_known_electricity_price, self.electricity_price_unit)
+            else:
+                # Kein gecachter Wert, verwende Config-Fallback
+                _LOGGER.warning("Strompreis-Sensor nicht verfügbar, verwende Konfigurationswert")
+                return self._convert_price_to_eur(self.electricity_price, self.electricity_price_unit)
+        else:
+            # Kein Sensor konfiguriert, verwende Config-Wert
+            self._price_sensor_available = True
+            return self._convert_price_to_eur(self.electricity_price, self.electricity_price_unit)
 
     @property
     def current_feed_in_tariff(self) -> float:
-        """Aktuelle Einspeisevergütung in €/kWh (dynamisch oder statisch, konvertiert von Cent falls nötig)."""
-        raw_tariff = self._get_dynamic_price(self.feed_in_tariff_entity, self.feed_in_tariff)
-        return self._convert_price_to_eur(raw_tariff, self.feed_in_tariff_unit)
+        """
+        Aktuelle Einspeisevergütung in €/kWh.
+
+        Fallback-Kette wie bei current_electricity_price.
+        """
+        if self.feed_in_tariff_entity:
+            raw_tariff, is_available = self._get_entity_value(
+                self.feed_in_tariff_entity, self.feed_in_tariff
+            )
+            self._tariff_sensor_available = is_available
+
+            if is_available:
+                self._last_known_feed_in_tariff = raw_tariff
+                return self._convert_price_to_eur(raw_tariff, self.feed_in_tariff_unit)
+            elif self._last_known_feed_in_tariff is not None:
+                _LOGGER.debug("Einspeise-Tarif-Sensor nicht verfügbar, verwende letzten bekannten Wert")
+                return self._convert_price_to_eur(self._last_known_feed_in_tariff, self.feed_in_tariff_unit)
+            else:
+                _LOGGER.warning("Einspeise-Tarif-Sensor nicht verfügbar, verwende Konfigurationswert")
+                return self._convert_price_to_eur(self.feed_in_tariff, self.feed_in_tariff_unit)
+        else:
+            self._tariff_sensor_available = True
+            return self._convert_price_to_eur(self.feed_in_tariff, self.feed_in_tariff_unit)
+
+    @property
+    def electricity_price_source(self) -> str:
+        """Zeigt die Quelle des aktuellen Strompreises."""
+        if not self.electricity_price_entity:
+            return "config"
+        elif self._price_sensor_available:
+            return "sensor"
+        elif self._last_known_electricity_price is not None:
+            return "cached"
+        else:
+            return "fallback"
+
+    @property
+    def feed_in_tariff_source(self) -> str:
+        """Zeigt die Quelle des aktuellen Tarifs."""
+        if not self.feed_in_tariff_entity:
+            return "config"
+        elif self._tariff_sensor_available:
+            return "sensor"
+        elif self._last_known_feed_in_tariff is not None:
+            return "cached"
+        else:
+            return "fallback"
+
+    @property
+    def battery_soc(self) -> float:
+        """Aktueller Batterie-Ladestand in %."""
+        return self._battery_soc
+
+    @property
+    def pv_power(self) -> float:
+        """Aktuelle PV-Leistung in W."""
+        return self._pv_power
+
+    @property
+    def pv_forecast(self) -> float:
+        """PV-Prognose in kWh."""
+        return self._pv_forecast
 
     @property
     def pv_production_kwh(self) -> float:
@@ -163,15 +279,13 @@ class PVAmortisationController:
 
     @property
     def savings_self_consumption(self) -> float:
-        """Ersparnis durch Eigenverbrauch (inkrementell berechnet + Offset-Anteil)."""
-        # Offset-Energie mit aktuellem Preis (Annäherung)
+        """Ersparnis durch Eigenverbrauch."""
         offset_savings = self.energy_offset_self * self.current_electricity_price
         return self._accumulated_savings_self + offset_savings
 
     @property
     def earnings_feed_in(self) -> float:
-        """Einnahmen durch Einspeisung (inkrementell berechnet + Offset-Anteil)."""
-        # Offset-Energie mit aktuellem Tarif (Annäherung)
+        """Einnahmen durch Einspeisung."""
         offset_earnings = self.energy_offset_export * self.current_feed_in_tariff
         return self._accumulated_earnings_feed + offset_earnings
 
@@ -202,7 +316,6 @@ class PVAmortisationController:
         """Eigenverbrauchsquote (%)."""
         if self._pv_production_kwh <= 0:
             return 0.0
-        # Aktuelle Eigenverbrauchsquote basierend auf Sensor-Totals
         current_self = max(0.0, self._pv_production_kwh - self._grid_export_kwh)
         return min(100.0, (current_self / self._pv_production_kwh) * 100)
 
@@ -284,6 +397,124 @@ class PVAmortisationController:
         else:
             return f"{self.amortisation_percent:.1f}% amortisiert"
 
+    # =========================================================================
+    # STROMVERBRAUCH-EMPFEHLUNG (AMPEL)
+    # =========================================================================
+
+    @property
+    def consumption_recommendation(self) -> str:
+        """
+        Berechnet Stromverbrauch-Empfehlung basierend auf:
+        - PV-Leistung (aktuell)
+        - Batterie-Ladestand
+        - Strompreis
+        - Tageszeit
+        - PV-Prognose
+
+        Returns: 'green', 'yellow', 'red'
+        """
+        score = 0  # Positiv = gut zu verbrauchen, Negativ = nicht verbrauchen
+
+        # === PV-Leistung (aktuell) ===
+        if self._pv_power >= self.pv_power_high:
+            score += 3  # Viel PV -> sehr gut
+        elif self._pv_power >= self.pv_power_high * 0.5:
+            score += 1  # Mittlere PV -> gut
+        elif self._pv_power < 100:
+            score -= 1  # Kaum PV -> schlecht
+
+        # === Batterie-Ladestand ===
+        if self.battery_soc_entity:
+            if self._battery_soc >= self.battery_soc_high:
+                score += 2  # Batterie voll -> gut verbrauchen
+            elif self._battery_soc <= self.battery_soc_low:
+                score -= 2  # Batterie leer -> nicht verbrauchen
+            else:
+                # Mittlerer Bereich
+                pass
+
+        # === Strompreis ===
+        price = self.current_electricity_price
+        if price <= self.price_low_threshold:
+            score += 2  # Günstiger Strom -> gut
+        elif price >= self.price_high_threshold:
+            score -= 2  # Teurer Strom -> schlecht
+
+        # === Tageszeit ===
+        hour = datetime.now().hour
+        if 10 <= hour <= 15:
+            score += 1  # Kernzeit PV -> gut
+        elif hour < 6 or hour > 21:
+            score -= 1  # Nacht -> eher schlecht
+
+        # === PV-Prognose ===
+        if self.pv_forecast_entity and self._pv_forecast > 0:
+            if self._pv_forecast >= 10:
+                score += 1  # Gute Prognose
+            elif self._pv_forecast < 3:
+                score -= 1  # Schlechte Prognose
+
+        # === Auswertung ===
+        if score >= 3:
+            return RECOMMENDATION_GREEN
+        elif score <= -2:
+            return RECOMMENDATION_RED
+        else:
+            return RECOMMENDATION_YELLOW
+
+    @property
+    def consumption_recommendation_text(self) -> str:
+        """Textuelle Empfehlung."""
+        rec = self.consumption_recommendation
+        if rec == RECOMMENDATION_GREEN:
+            return "Jetzt verbrauchen!"
+        elif rec == RECOMMENDATION_RED:
+            return "Verbrauch vermeiden"
+        else:
+            return "Neutral"
+
+    @property
+    def consumption_recommendation_score(self) -> int:
+        """Detaillierter Score für die Empfehlung."""
+        score = 0
+
+        if self._pv_power >= self.pv_power_high:
+            score += 3
+        elif self._pv_power >= self.pv_power_high * 0.5:
+            score += 1
+        elif self._pv_power < 100:
+            score -= 1
+
+        if self.battery_soc_entity:
+            if self._battery_soc >= self.battery_soc_high:
+                score += 2
+            elif self._battery_soc <= self.battery_soc_low:
+                score -= 2
+
+        price = self.current_electricity_price
+        if price <= self.price_low_threshold:
+            score += 2
+        elif price >= self.price_high_threshold:
+            score -= 2
+
+        hour = datetime.now().hour
+        if 10 <= hour <= 15:
+            score += 1
+        elif hour < 6 or hour > 21:
+            score -= 1
+
+        if self.pv_forecast_entity and self._pv_forecast > 0:
+            if self._pv_forecast >= 10:
+                score += 1
+            elif self._pv_forecast < 3:
+                score -= 1
+
+        return score
+
+    # =========================================================================
+    # ENTITY MANAGEMENT
+    # =========================================================================
+
     def register_entity_listener(self, cb) -> None:
         """Sensoren registrieren sich hier für Updates."""
         self._entity_listeners.append(cb)
@@ -312,7 +543,7 @@ class PVAmortisationController:
 
         self._restored = True
         _LOGGER.info(
-            "PV Amortisation restored: %.2f kWh self, %.2f kWh feed, %.2f€ savings, %.2f€ earnings",
+            "PV Management restored: %.2f kWh self, %.2f kWh feed, %.2f€ savings, %.2f€ earnings",
             self._total_self_consumption_kwh,
             self._total_feed_in_kwh,
             self._accumulated_savings_self,
@@ -330,31 +561,18 @@ class PVAmortisationController:
         }
 
     def _process_energy_update(self) -> None:
-        """
-        Verarbeitet Energie-Updates INKREMENTELL.
-
-        Bei jeder Änderung der Sensor-Werte wird:
-        1. Das Delta seit dem letzten Update berechnet
-        2. Das Delta mit dem AKTUELLEN Preis multipliziert
-        3. Auf die Gesamtsumme addiert
-
-        So sind dynamische Preise korrekt berücksichtigt!
-        """
-        # Hole aktuelle Sensor-Werte
+        """Verarbeitet Energie-Updates INKREMENTELL."""
         current_pv = self._pv_production_kwh
         current_export = self._grid_export_kwh
 
-        # Prüfe ob wir gültige Last-Werte haben
         if self._last_pv_production_kwh is None:
             self._last_pv_production_kwh = current_pv
             self._last_grid_export_kwh = current_export
             return
 
-        # Berechne Deltas
         delta_pv = current_pv - self._last_pv_production_kwh
         delta_export = current_export - self._last_grid_export_kwh
 
-        # Ignoriere negative Deltas (Sensor-Reset oder Fehler)
         if delta_pv < 0:
             _LOGGER.debug("PV Delta negativ (%.3f), überspringe", delta_pv)
             self._last_pv_production_kwh = current_pv
@@ -365,38 +583,28 @@ class PVAmortisationController:
             self._last_grid_export_kwh = current_export
             delta_export = 0
 
-        # Berechne Delta Eigenverbrauch
-        # Eigenverbrauch = PV Produktion - Netzeinspeisung
         delta_self_consumption = max(0.0, delta_pv - delta_export)
 
-        # Nur verarbeiten wenn es tatsächlich Änderungen gibt
         if delta_self_consumption > 0 or delta_export > 0:
-            # Hole aktuelle Preise
             price_electricity = self.current_electricity_price
             price_feed_in = self.current_feed_in_tariff
 
-            # Berechne Ersparnis/Einnahmen für dieses Delta
             savings_delta = delta_self_consumption * price_electricity
             earnings_delta = delta_export * price_feed_in
 
-            # Addiere zu Gesamtsummen
             self._total_self_consumption_kwh += delta_self_consumption
             self._total_feed_in_kwh += delta_export
             self._accumulated_savings_self += savings_delta
             self._accumulated_earnings_feed += earnings_delta
 
             _LOGGER.debug(
-                "Delta: +%.3f kWh self (%.4f€), +%.3f kWh export (%.4f€) @ %.4f€/kWh, %.4f€/kWh",
+                "Delta: +%.3f kWh self (%.4f€), +%.3f kWh export (%.4f€)",
                 delta_self_consumption, savings_delta,
                 delta_export, earnings_delta,
-                price_electricity, price_feed_in,
             )
 
-        # Update Last-Werte
         self._last_pv_production_kwh = current_pv
         self._last_grid_export_kwh = current_export
-
-        # Benachrichtige Entities
         self._notify_entities()
 
     @callback
@@ -413,12 +621,13 @@ class PVAmortisationController:
         except (ValueError, TypeError):
             return
 
-        # Initialisiere first_seen_date
         if self._first_seen_date is None:
             self._first_seen_date = date.today()
 
-        # Update entsprechenden Wert
         changed = False
+        recommendation_changed = False
+
+        # Energie-Sensoren (für Amortisation)
         if entity_id == self.pv_production_entity:
             self._pv_production_kwh = value
             changed = True
@@ -430,13 +639,25 @@ class PVAmortisationController:
         elif entity_id == self.consumption_entity:
             self._consumption_kwh = value
 
-        # Nur bei PV oder Export Änderungen die inkrementelle Berechnung triggern
+        # Empfehlungs-Sensoren
+        elif entity_id == self.battery_soc_entity:
+            self._battery_soc = value
+            recommendation_changed = True
+        elif entity_id == self.pv_power_entity:
+            self._pv_power = value
+            recommendation_changed = True
+        elif entity_id == self.pv_forecast_entity:
+            self._pv_forecast = value
+            recommendation_changed = True
+
         if changed:
             self._process_energy_update()
+        elif recommendation_changed:
+            self._notify_entities()
 
     async def async_start(self) -> None:
         """Startet das Tracking."""
-        # Initiale Werte laden
+        # Initiale Werte laden - Energie
         for entity_id, attr in [
             (self.pv_production_entity, "_pv_production_kwh"),
             (self.grid_export_entity, "_grid_export_kwh"),
@@ -451,13 +672,25 @@ class PVAmortisationController:
                     except (ValueError, TypeError):
                         pass
 
-        # Initialisiere Last-Werte für Delta-Berechnung
+        # Initiale Werte laden - Empfehlung
+        for entity_id, attr in [
+            (self.battery_soc_entity, "_battery_soc"),
+            (self.pv_power_entity, "_pv_power"),
+            (self.pv_forecast_entity, "_pv_forecast"),
+        ]:
+            if entity_id:
+                state = self.hass.states.get(entity_id)
+                if state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                    try:
+                        setattr(self, attr, float(state.state))
+                    except (ValueError, TypeError):
+                        pass
+
         self._last_pv_production_kwh = self._pv_production_kwh
         self._last_grid_export_kwh = self._grid_export_kwh
         self._last_grid_import_kwh = self._grid_import_kwh
         self._last_consumption_kwh = self._consumption_kwh
 
-        # Event-Listener registrieren
         @callback
         def state_listener(event: Event):
             self._on_state_changed(event)
@@ -483,7 +716,7 @@ class PVAmortisationController:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Setup der Integration."""
-    ctrl = PVAmortisationController(hass, entry)
+    ctrl = PVManagementController(hass, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {DATA_CTRL: ctrl}
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

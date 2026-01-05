@@ -1,32 +1,46 @@
-# PV Amortisation
+# PV Management
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/hoizi89/pv_amortisation.svg)](https://github.com/hoizi89/pv_amortisation/releases)
+[![GitHub Release](https://img.shields.io/github/release/hoizi89/pv_management.svg)](https://github.com/hoizi89/pv_management/releases)
 
-Eine Home Assistant Integration zur Berechnung der PV-Anlagen Amortisation.
+Eine Home Assistant Integration für PV-Anlagen Management mit Amortisationsberechnung und intelligenter Verbrauchsempfehlung.
 
 ## Features
 
-- **Amortisationsberechnung** - Berechnet wie viel % der Anlage bereits abbezahlt ist
-- **Eigenverbrauch & Einspeisung** - Automatische Berechnung basierend auf deinen Sensoren
-- **Dynamische Preise** - Unterstützt feste Preise oder dynamische Strompreis-Sensoren
-- **Euro oder Cent** - Preise können in €/kWh oder ct/kWh angegeben werden
-- **Statistiken** - Ersparnis pro Tag/Monat/Jahr, Restlaufzeit, Prognose
-- **Offset-Unterstützung** - Für Anlagen die schon vor dem Tracking liefen
-- **CO2-Ersparnis** - Zeigt eingesparte CO2-Emissionen
+### Amortisation
+- **Amortisationsberechnung** - Wie viel % der Anlage ist bereits abbezahlt
+- **Inkrementelle Berechnung** - Korrekt auch bei dynamischen Strompreisen
+- **Eigenverbrauch & Einspeisung** - Automatische Berechnung
+- **Persistente Speicherung** - Daten bleiben nach Neustart erhalten
+- **Euro oder Cent** - Preise in €/kWh oder ct/kWh
+
+### Verbrauchsempfehlung (Ampel)
+- **Intelligente Ampel** - Zeigt ob jetzt ein guter Zeitpunkt zum Verbrauchen ist
+- **Basiert auf:**
+  - Aktuelle PV-Leistung
+  - Batterie-Ladestand
+  - Aktueller Strompreis
+  - Tageszeit
+  - PV-Prognose
+- **Konfigurierbare Schwellwerte** - Passe die Empfehlung an deine Anlage an
+
+### Statistiken
+- Ersparnis pro Tag/Monat/Jahr
+- Restlaufzeit bis Amortisation
+- CO2-Ersparnis
+- Eigenverbrauchsquote & Autarkiegrad
 
 ## Sensoren
 
 | Sensor | Beschreibung |
 |--------|--------------|
+| **Verbrauchsempfehlung** | Ampel (Jetzt verbrauchen / Neutral / Vermeiden) |
 | **Amortisation** | Amortisation in % |
 | **Gesamtersparnis** | Gesamte Ersparnis in € |
 | **Restbetrag** | Verbleibender Betrag bis Amortisation |
 | **Status** | Text-Status (z.B. "45.2% amortisiert") |
 | **Eigenverbrauch** | Selbst verbrauchter PV-Strom in kWh |
 | **Einspeisung** | Ins Netz eingespeister Strom in kWh |
-| **Ersparnis Eigenverbrauch** | Ersparnis durch Eigenverbrauch in € |
-| **Einnahmen Einspeisung** | Einnahmen durch Einspeisung in € |
 | **Eigenverbrauchsquote** | Anteil der PV-Produktion der selbst verbraucht wird |
 | **Autarkiegrad** | Anteil des Verbrauchs der durch PV gedeckt wird |
 | **Ersparnis pro Tag/Monat/Jahr** | Durchschnittliche Ersparnis |
@@ -40,78 +54,92 @@ Eine Home Assistant Integration zur Berechnung der PV-Anlagen Amortisation.
 
 1. Öffne HACS in Home Assistant
 2. Klicke auf "Integrationen"
-3. Klicke auf die drei Punkte oben rechts → "Benutzerdefinierte Repositories"
-4. Füge `https://github.com/hoizi89/pv_amortisation` als Repository hinzu (Kategorie: Integration)
-5. Suche nach "PV Amortisation" und installiere es
+3. Klicke auf die drei Punkte oben rechts -> "Benutzerdefinierte Repositories"
+4. Füge `https://github.com/hoizi89/pv_management` als Repository hinzu (Kategorie: Integration)
+5. Suche nach "PV Management" und installiere es
 6. Starte Home Assistant neu
 
 ### Manuell
 
-1. Kopiere den `custom_components/pv_amortisation` Ordner in dein `config/custom_components/` Verzeichnis
+1. Kopiere den `custom_components/pv_management` Ordner in dein `config/custom_components/` Verzeichnis
 2. Starte Home Assistant neu
 
 ## Konfiguration
 
-1. Gehe zu Einstellungen → Geräte & Dienste
+1. Gehe zu Einstellungen -> Geräte & Dienste
 2. Klicke auf "Integration hinzufügen"
-3. Suche nach "PV Amortisation"
+3. Suche nach "PV Management"
 4. Folge dem Setup-Assistenten
 
-### Erforderliche Sensoren
+### Sensoren für Amortisation
 
-- **PV Produktion** - Ein Sensor der die gesamte PV-Produktion in kWh misst (total_increasing)
+| Sensor | Pflicht | Beschreibung |
+|--------|---------|--------------|
+| **PV Produktion** | Ja | Gesamte PV-Produktion in kWh |
+| **Netzeinspeisung** | Nein | Grid-Export in kWh |
+| **Netzbezug** | Nein | Grid-Import in kWh |
+| **Hausverbrauch** | Nein | Gesamtverbrauch in kWh |
 
-### Optionale Sensoren (für genauere Berechnung)
+### Sensoren für Verbrauchsempfehlung (optional)
 
-- **Netzeinspeisung** - Sensor für Grid-Export in kWh
-- **Netzbezug** - Sensor für Grid-Import in kWh
-- **Hausverbrauch** - Sensor für Gesamtverbrauch in kWh
+| Sensor | Beschreibung |
+|--------|--------------|
+| **Batterie-Ladestand** | Aktueller SOC in % |
+| **PV-Leistung** | Aktuelle PV-Leistung in W |
+| **PV-Prognose** | Tagesprognose in kWh |
 
-### Einstellungen
+### Schwellwerte (in Options konfigurierbar)
 
-| Einstellung | Beschreibung |
-|-------------|--------------|
-| **Strompreis-Einheit** | Euro oder Cent pro kWh |
-| **Strompreis** | Aktueller Strompreis |
-| **Dynamischer Strompreis** | Optional: Sensor für dynamischen Preis |
-| **Einspeisevergütung-Einheit** | Euro oder Cent pro kWh |
-| **Einspeisevergütung** | Vergütung für eingespeisten Strom |
-| **Anschaffungskosten** | Gesamtkosten der PV-Anlage |
-| **Installationsdatum** | Datum der Installation |
-| **Ersparnis-Offset** | Bereits amortisierter Betrag (vor Tracking) |
-| **Energie-Offset** | Eigenverbrauch/Einspeisung vor Tracking |
+| Einstellung | Standard | Beschreibung |
+|-------------|----------|--------------|
+| **Batterie Hoch** | 80% | Ab hier gilt Batterie als "voll" |
+| **Batterie Niedrig** | 20% | Ab hier gilt Batterie als "leer" |
+| **PV-Leistung Hoch** | 1000W | Ab hier "viel PV" |
+| **Preis Niedrig** | 0.15 €/kWh | Darunter ist Strom "günstig" |
+| **Preis Hoch** | 0.30 €/kWh | Darüber ist Strom "teuer" |
 
 ## Beispiel Dashboard
 
 ```yaml
 type: entities
-title: PV Amortisation
+title: PV Management
 entities:
-  - entity: sensor.pv_amortisation_status
-  - entity: sensor.pv_amortisation_amortisation
-  - entity: sensor.pv_amortisation_gesamtersparnis
-  - entity: sensor.pv_amortisation_restbetrag
-  - entity: sensor.pv_amortisation_restlaufzeit
-  - entity: sensor.pv_amortisation_amortisationsdatum
+  - entity: sensor.pv_management_verbrauchsempfehlung
   - type: divider
-  - entity: sensor.pv_amortisation_eigenverbrauch
-  - entity: sensor.pv_amortisation_einspeisung
-  - entity: sensor.pv_amortisation_eigenverbrauchsquote
-  - entity: sensor.pv_amortisation_autarkiegrad
+  - entity: sensor.pv_management_status
+  - entity: sensor.pv_management_amortisation
+  - entity: sensor.pv_management_gesamtersparnis
+  - entity: sensor.pv_management_restbetrag
+  - entity: sensor.pv_management_restlaufzeit
   - type: divider
-  - entity: sensor.pv_amortisation_ersparnis_pro_tag
-  - entity: sensor.pv_amortisation_ersparnis_pro_monat
-  - entity: sensor.pv_amortisation_co2_ersparnis
+  - entity: sensor.pv_management_eigenverbrauch
+  - entity: sensor.pv_management_einspeisung
+  - entity: sensor.pv_management_eigenverbrauchsquote
+  - type: divider
+  - entity: sensor.pv_management_ersparnis_pro_tag
+  - entity: sensor.pv_management_ersparnis_pro_monat
+  - entity: sensor.pv_management_co2_ersparnis
 ```
 
 ## Changelog
+
+### v2.0.0
+- Umbenannt zu "PV Management"
+- Neuer Verbrauchsempfehlungs-Sensor (Ampel)
+- Batterie-Integration
+- PV-Prognose-Integration
+- Konfigurierbare Schwellwerte
+
+### v1.1.0
+- Inkrementelle Berechnung für dynamische Preise
+- Persistente Speicherung via RestoreEntity
+- Sensoren nachträglich änderbar
+- Diagnose-Sensor
 
 ### v1.0.0
 - Initiales Release
 - Amortisationsberechnung
 - Euro/Cent Unterstützung
-- Dynamische Strompreise
-- Offset für bestehende Anlagen
 - 21 verschiedene Sensoren
 
 ## Lizenz
