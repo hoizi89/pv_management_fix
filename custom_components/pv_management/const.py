@@ -55,6 +55,7 @@ CONF_PRICE_HIGH_THRESHOLD: Final[str] = "price_high_threshold"
 CONF_PRICE_LOW_THRESHOLD: Final[str] = "price_low_threshold"
 CONF_PV_POWER_HIGH: Final[str] = "pv_power_high"
 CONF_PV_PEAK_POWER: Final[str] = "pv_peak_power"
+CONF_WINTER_BASE_LOAD: Final[str] = "winter_base_load"
 
 # --- Defaults -----------------------------------------------------------------
 DEFAULT_NAME: Final[str] = "PV Management"
@@ -74,6 +75,7 @@ DEFAULT_PRICE_HIGH_THRESHOLD: Final[float] = 0.30  # €/kWh - teuer
 DEFAULT_PRICE_LOW_THRESHOLD: Final[float] = 0.15   # €/kWh - günstig
 DEFAULT_PV_POWER_HIGH: Final[float] = 1000.0  # W - viel PV (Fallback)
 DEFAULT_PV_PEAK_POWER: Final[float] = 10000.0  # W - 10kWp Anlage
+DEFAULT_WINTER_BASE_LOAD: Final[float] = 0.0  # W - Grundlast Winter (z.B. Wärmepumpe)
 
 # --- Ranges für Config Flow / Options -----------------------------------------
 RANGE_PRICE_EUR: Final[dict] = {"min": 0.01, "max": 1.0, "step": 0.001}

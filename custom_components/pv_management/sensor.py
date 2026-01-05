@@ -952,11 +952,15 @@ class ConsumptionRecommendationSensor(BaseEntity):
         reasons_positive = []
         reasons_negative = []
 
-        # === PV-Leistung (basierend auf Peak-Leistung) ===
-        pv_power = self.ctrl.pv_power
+        # === PV-Leistung (basierend auf Peak-Leistung, mit Winter-Grundlast-Abzug) ===
+        pv_power_raw = self.ctrl.pv_power
+        pv_power = self.ctrl.effective_pv_power  # Mit Winter-Grundlast-Abzug
         pv_peak = self.ctrl.pv_peak_power
+        winter_base = self.ctrl.winter_base_load
+        is_winter = self.ctrl.is_winter
         pv_very_high = pv_peak * 0.6
         pv_high = pv_peak * 0.3
+        pv_moderate = pv_peak * 0.1
         pv_low = pv_peak * 0.05
         pv_percent = (pv_power / pv_peak * 100) if pv_peak > 0 else 0
 
@@ -966,6 +970,9 @@ class ConsumptionRecommendationSensor(BaseEntity):
         elif pv_power >= pv_high:
             pv_score = 2
             reasons_positive.append("Viel PV")
+        elif pv_power >= pv_moderate:
+            pv_score = 1
+            reasons_positive.append("Etwas PV")
         elif pv_power < pv_low:
             pv_score = -1
             reasons_negative.append("Kaum PV")
@@ -973,13 +980,16 @@ class ConsumptionRecommendationSensor(BaseEntity):
             pv_score = 0
 
         breakdown["pv_leistung"] = {
-            "wert": f"{pv_power:.0f} W",
+            "wert": f"{pv_power_raw:.0f} W",
+            "effektiv": f"{pv_power:.0f} W" if is_winter and winter_base > 0 else None,
+            "winter_grundlast": f"{winter_base:.0f} W" if is_winter and winter_base > 0 else None,
             "prozent": f"{pv_percent:.0f}%",
             "peak_leistung": f"{pv_peak:.0f} W",
             "schwelle_sehr_hoch": f"{pv_very_high:.0f} W (60%)",
             "schwelle_hoch": f"{pv_high:.0f} W (30%)",
+            "schwelle_moderat": f"{pv_moderate:.0f} W (10%)",
             "punkte": pv_score,
-            "bewertung": "++++" if pv_score >= 4 else "++" if pv_score >= 2 else "--" if pv_score < 0 else "o"
+            "bewertung": "++++" if pv_score >= 4 else "++" if pv_score >= 2 else "+" if pv_score >= 1 else "--" if pv_score < 0 else "o"
         }
         total_score += pv_score
 

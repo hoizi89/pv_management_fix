@@ -18,14 +18,14 @@ from .const import (
     CONF_INSTALLATION_COST, CONF_INSTALLATION_DATE,
     CONF_BATTERY_SOC_HIGH, CONF_BATTERY_SOC_LOW,
     CONF_PRICE_HIGH_THRESHOLD, CONF_PRICE_LOW_THRESHOLD, CONF_PV_POWER_HIGH,
-    CONF_PV_PEAK_POWER,
+    CONF_PV_PEAK_POWER, CONF_WINTER_BASE_LOAD,
     CONF_EPEX_PRICE_ENTITY, CONF_EPEX_QUANTILE_ENTITY, CONF_SOLCAST_FORECAST_ENTITY,
     DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
     DEFAULT_BATTERY_SOC_HIGH, DEFAULT_BATTERY_SOC_LOW,
     DEFAULT_PRICE_HIGH_THRESHOLD, DEFAULT_PRICE_LOW_THRESHOLD, DEFAULT_PV_POWER_HIGH,
-    DEFAULT_PV_PEAK_POWER,
+    DEFAULT_PV_PEAK_POWER, DEFAULT_WINTER_BASE_LOAD,
     PRICE_UNIT_CENT,
     RECOMMENDATION_DARK_GREEN, RECOMMENDATION_GREEN, RECOMMENDATION_YELLOW, RECOMMENDATION_RED,
 )
@@ -141,6 +141,21 @@ class PVManagementController:
         self.price_low_threshold = opts.get(CONF_PRICE_LOW_THRESHOLD, DEFAULT_PRICE_LOW_THRESHOLD)
         self.pv_power_high = opts.get(CONF_PV_POWER_HIGH, DEFAULT_PV_POWER_HIGH)
         self.pv_peak_power = opts.get(CONF_PV_PEAK_POWER, DEFAULT_PV_PEAK_POWER)
+        self.winter_base_load = opts.get(CONF_WINTER_BASE_LOAD, DEFAULT_WINTER_BASE_LOAD)
+
+    @property
+    def is_winter(self) -> bool:
+        """Prüft ob aktuell Winter ist (Oktober bis März)."""
+        month = datetime.now().month
+        return month >= 10 or month <= 3
+
+    @property
+    def effective_pv_power(self) -> float:
+        """Effektive PV-Leistung nach Abzug der Winter-Grundlast."""
+        pv = self._pv_power
+        if self.is_winter and self.winter_base_load > 0:
+            pv = max(0, pv - self.winter_base_load)
+        return pv
 
     def _convert_price_to_eur(self, price: float, unit: str, auto_detect: bool = False) -> float:
         """
@@ -712,16 +727,21 @@ class PVManagementController:
         reasons = []
 
         # PV-Leistung (basierend auf Peak-Leistung)
-        # Schwellwerte: 60% sehr viel, 30% viel, <5% kein PV
+        # Im Winter wird Grundlast (z.B. Wärmepumpe) abgezogen
+        # Schwellwerte: 60% sehr viel, 30% viel, 10% etwas, <5% kaum
+        pv_power = self.effective_pv_power  # Mit Winter-Grundlast-Abzug
         pv_very_high = self.pv_peak_power * 0.6
         pv_high = self.pv_peak_power * 0.3
+        pv_moderate = self.pv_peak_power * 0.1
         pv_low = self.pv_peak_power * 0.05
 
-        if self._pv_power >= pv_very_high:
+        if pv_power >= pv_very_high:
             reasons.append("sehr viel PV")
-        elif self._pv_power >= pv_high:
+        elif pv_power >= pv_high:
             reasons.append("viel PV")
-        elif self._pv_power < pv_low:
+        elif pv_power >= pv_moderate:
+            reasons.append("etwas PV")
+        elif pv_power < pv_low:
             reasons.append("kaum PV")
 
         # Batterie
@@ -755,16 +775,20 @@ class PVManagementController:
         """Detaillierter Score für die Empfehlung."""
         score = 0
 
-        # PV-Leistung (basierend auf Peak-Leistung)
+        # PV-Leistung (basierend auf Peak-Leistung, mit Winter-Grundlast-Abzug)
+        pv_power = self.effective_pv_power
         pv_very_high = self.pv_peak_power * 0.6
         pv_high = self.pv_peak_power * 0.3
+        pv_moderate = self.pv_peak_power * 0.1
         pv_low = self.pv_peak_power * 0.05
 
-        if self._pv_power >= pv_very_high:
+        if pv_power >= pv_very_high:
             score += 4
-        elif self._pv_power >= pv_high:
+        elif pv_power >= pv_high:
             score += 2
-        elif self._pv_power >= pv_low:
+        elif pv_power >= pv_moderate:
+            score += 1  # Etwas PV = +1
+        elif pv_power >= pv_low:
             score += 0
         else:
             score -= 1
