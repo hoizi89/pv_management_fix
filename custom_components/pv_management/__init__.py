@@ -465,6 +465,113 @@ class PVManagementController:
                 return f"In {info['in_hours']}h am günstigsten ({time_str}, {price_ct:.1f}ct)"
 
     @property
+    def next_pv_peak(self) -> dict | None:
+        """
+        Findet die nächste Stunde mit hoher PV-Produktion (aus Solcast).
+
+        Returns: {"hour": 12, "power_kw": 5.2, "in_hours": 3} oder None
+        """
+        if not self._solcast_hourly_forecast:
+            return None
+
+        try:
+            now = datetime.now()
+            current_hour = now.hour
+
+            # Minimum 1 kW für "relevante" PV-Produktion
+            min_power = 1.0
+
+            upcoming = []
+            for entry in self._solcast_hourly_forecast:
+                if not isinstance(entry, dict):
+                    continue
+
+                # Solcast Format: period_start, pv_estimate (kW)
+                period_start = entry.get("period_start")
+                power = entry.get("pv_estimate", 0)
+
+                if not period_start or power < min_power:
+                    continue
+
+                try:
+                    if isinstance(period_start, str):
+                        dt = datetime.fromisoformat(period_start.replace("Z", "+00:00"))
+                        # Konvertiere zu lokaler Zeit falls nötig
+                        if dt.tzinfo:
+                            dt = dt.replace(tzinfo=None)
+                        hour = dt.hour
+                    elif hasattr(period_start, 'hour'):
+                        hour = period_start.hour
+                    else:
+                        continue
+
+                    hours_until = hour - current_hour
+                    if hours_until <= 0:
+                        hours_until += 24
+
+                    # Nur nächste 12 Stunden
+                    if 0 < hours_until <= 12:
+                        upcoming.append({
+                            "hour": hour,
+                            "power_kw": float(power),
+                            "in_hours": hours_until
+                        })
+                except (ValueError, AttributeError):
+                    continue
+
+            if not upcoming:
+                return None
+
+            # Finde die Stunde mit der höchsten Produktion
+            upcoming.sort(key=lambda x: x["power_kw"], reverse=True)
+            return upcoming[0]
+
+        except Exception as e:
+            _LOGGER.debug("Fehler bei next_pv_peak Berechnung: %s", e)
+            return None
+
+    @property
+    def next_pv_peak_text(self) -> str:
+        """Menschenlesbare Ausgabe der nächsten PV-Peak-Stunde."""
+        info = self.next_pv_peak
+        if not info:
+            return ""
+
+        time_str = f"{info['hour']}:00"
+        power = info['power_kw']
+
+        if info["in_hours"] == 1:
+            return f"In 1h ca. {power:.0f} kW PV ({time_str})"
+        else:
+            return f"In {info['in_hours']}h ca. {power:.0f} kW PV ({time_str})"
+
+    @property
+    def best_opportunity_text(self) -> str:
+        """
+        Kombinierter Tipp: PV-Peak oder günstige Stunde - je nachdem was relevanter ist.
+        Zeigt PV-Peak wenn tagsüber und gute Prognose, sonst Preis-Tipp.
+        """
+        pv_info = self.next_pv_peak
+        price_info = self.next_cheap_hour
+
+        hour = datetime.now().hour
+        is_daytime = 6 <= hour <= 18
+
+        # Tagsüber und gute PV erwartet → PV-Tipp hat Vorrang
+        if is_daytime and pv_info and pv_info["power_kw"] >= 2.0:
+            return self.next_pv_peak_text
+
+        # Nachts oder wenig PV → Preis-Tipp
+        if price_info:
+            return self.next_cheap_hour_text
+
+        # Fallback: PV-Tipp wenn vorhanden
+        if pv_info:
+            return self.next_pv_peak_text
+
+        return ""
+
+    @property
     def pv_production_kwh(self) -> float:
         """Aktuelle PV-Produktion vom Sensor."""
         return self._pv_production_kwh
@@ -759,6 +866,26 @@ class PVManagementController:
         if reasons:
             return f"{prefix}: {reasons}"
         return prefix
+
+    @property
+    def recommendation_status(self) -> str:
+        """Kurzer Status-Text für die Empfehlung (ohne Gründe)."""
+        rec = self.consumption_recommendation
+        if rec == RECOMMENDATION_DARK_GREEN:
+            return "Idealer Zeitpunkt"
+        elif rec == RECOMMENDATION_GREEN:
+            return "Guter Zeitpunkt"
+        elif rec == RECOMMENDATION_ORANGE:
+            return "Eher ungünstig"
+        elif rec == RECOMMENDATION_RED:
+            return "Ungünstig"
+        else:
+            return "Neutral"
+
+    @property
+    def recommendation_reasons(self) -> str:
+        """Gründe für die Empfehlung (ohne Status-Präfix)."""
+        return self._get_recommendation_reasons()
 
     @property
     def consumption_recommendation_color(self) -> str:

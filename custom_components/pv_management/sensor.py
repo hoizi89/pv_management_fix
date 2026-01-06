@@ -1157,6 +1157,11 @@ class ConsumptionRecommendationSensor(BaseEntity):
             "gesamt_score": analysis["total_score"],
             "bewertung": self._get_score_explanation(analysis["total_score"]),
 
+            # === NEU: Für mehrzeilige Card-Anzeige ===
+            "status": self.ctrl.recommendation_status,  # Zeile 1: "Ungünstig", "Guter Zeitpunkt", etc.
+            "gruende": self.ctrl.recommendation_reasons,  # Zeile 2: "kaum PV, Akku leer"
+            "tipp": self.ctrl.best_opportunity_text,  # Zeile 3: "In 3h günstig" oder "In 2h 5 kW PV"
+
             # Gründe (für einfache Anzeige)
             "gruende_positiv": ", ".join(analysis["gruende_positiv"]) if analysis["gruende_positiv"] else "Keine",
             "gruende_negativ": ", ".join(analysis["gruende_negativ"]) if analysis["gruende_negativ"] else "Keine",
