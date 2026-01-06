@@ -657,22 +657,27 @@ class PVManagementController:
                 # Mittlerer Bereich
                 pass
 
-        # === Strompreis (EPEX Quantile hat Priorität) ===
+        # === Strompreis (Quantile + absoluter Schwellwert) ===
+        price = self.current_electricity_price
+        is_below_threshold = price <= self.price_low_threshold
+        is_above_threshold = price >= self.price_high_threshold
+
         if self.epex_quantile_entity and 0 <= self._epex_quantile <= 1:
-            # EPEX Quantile: 0 = günstigster Preis, 1 = teuerster Preis
-            if self._epex_quantile <= 0.2:
-                score += 3  # Sehr günstig (unterste 20%)
-            elif self._epex_quantile <= 0.4:
-                score += 1  # Günstig (unterste 40%)
-            elif self._epex_quantile >= 0.8:
-                score -= 3  # Sehr teuer (oberste 20%)
+            # EPEX verfügbar: Kombiniere Quantile mit absolutem Preis
+            if self._epex_quantile <= 0.2 and is_below_threshold:
+                score += 3  # Sehr günstig (relativ + absolut)
+            elif self._epex_quantile <= 0.2:
+                score += 1  # Nur relativ günstig (über Schwelle)
+            elif is_below_threshold:
+                score += 2  # Absolut günstig
+            elif self._epex_quantile >= 0.8 or is_above_threshold:
+                score -= 3  # Teuer
             elif self._epex_quantile >= 0.6:
-                score -= 1  # Teuer (oberste 40%)
+                score -= 1  # Relativ teuer
         else:
-            # Fallback: Absoluter Preis
-            price = self.current_electricity_price
-            if price <= self.price_low_threshold:
-                score += 2  # Günstiger Strom -> gut
+            # Fallback: Nur absoluter Preis
+            if is_below_threshold:
+                score += 2  # Günstiger Strom
             elif price >= self.price_high_threshold:
                 score -= 2  # Teurer Strom -> schlecht
 
@@ -824,21 +829,26 @@ class PVManagementController:
             elif self._battery_soc <= self.battery_soc_low:
                 score -= 2
 
-        # EPEX Quantile hat Priorität
+        # Strompreis (Quantile + absoluter Schwellwert)
+        price = self.current_electricity_price
+        is_below_threshold = price <= self.price_low_threshold
+        is_above_threshold = price >= self.price_high_threshold
+
         if self.epex_quantile_entity and 0 <= self._epex_quantile <= 1:
-            if self._epex_quantile <= 0.2:
-                score += 3
-            elif self._epex_quantile <= 0.4:
-                score += 1
-            elif self._epex_quantile >= 0.8:
-                score -= 3
+            if self._epex_quantile <= 0.2 and is_below_threshold:
+                score += 3  # Sehr günstig
+            elif self._epex_quantile <= 0.2:
+                score += 1  # Nur relativ günstig
+            elif is_below_threshold:
+                score += 2  # Absolut günstig
+            elif self._epex_quantile >= 0.8 or is_above_threshold:
+                score -= 3  # Teuer
             elif self._epex_quantile >= 0.6:
-                score -= 1
+                score -= 1  # Relativ teuer
         else:
-            price = self.current_electricity_price
-            if price <= self.price_low_threshold:
+            if is_below_threshold:
                 score += 2
-            elif price >= self.price_high_threshold:
+            elif is_above_threshold:
                 score -= 2
 
         hour = datetime.now().hour
