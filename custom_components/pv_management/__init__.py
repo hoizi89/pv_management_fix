@@ -777,20 +777,20 @@ class PVManagementController:
         if self.epex_quantile_entity and 0 <= self._epex_quantile <= 1:
             # EPEX verfügbar: Quantile + absoluter Preis
             if self._epex_quantile <= 0.2 and is_below_threshold:
-                reasons.append("Strom sehr günstig")
+                reasons.append("sehr günstig")
             elif self._epex_quantile <= 0.2:
-                reasons.append("Strom günstiger als sonst")  # Relativ günstig, aber über Schwelle
+                reasons.append("heute günstig")  # Relativ günstig, aber über Schwelle
             elif is_below_threshold:
                 reasons.append("Strom günstig")
             elif self._epex_quantile >= 0.8 or is_above_threshold:
                 reasons.append("Strom teuer")
             elif self._epex_quantile >= 0.6:
-                reasons.append("Strom teurer als sonst")
+                reasons.append("heute teuer")  # Relativ teuer
         else:
             # Kein EPEX: Nur absoluter Preis
             if is_below_threshold:
                 reasons.append("Strom günstig")
-            elif price >= self.price_high_threshold:
+            elif is_above_threshold:
                 reasons.append("Strom teuer")
 
         return ", ".join(reasons) if reasons else ""
