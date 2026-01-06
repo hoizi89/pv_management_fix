@@ -406,12 +406,35 @@ class PVManagementController:
             if cheap_hours:
                 # Sortiere nach Zeit (nächste günstige Stunde zuerst)
                 cheap_hours.sort(key=lambda x: x["in_hours"])
-                return cheap_hours[0]
+                next_cheap = cheap_hours[0]
 
-            # Fallback: Günstigste Stunde insgesamt (auch wenn über Schwellwert)
+                # Wenn nächste günstige Stunde ≤12h entfernt → direkt zurückgeben
+                if next_cheap["in_hours"] <= 12:
+                    return next_cheap
+
+                # Wenn >12h entfernt: zeige günstigste in den nächsten 12h
+                next_12h = [p for p in upcoming_prices if p["in_hours"] <= 12]
+                if next_12h:
+                    next_12h.sort(key=lambda x: x["price"])
+                    result = next_12h[0]
+                    result["is_fallback_12h"] = True  # Markiere als 12h-Fallback
+                    return result
+
+                # Sonst: trotzdem die günstige Stunde zeigen (auch wenn >12h)
+                return next_cheap
+
+            # Fallback: Günstigste Stunde in den nächsten 12h
+            next_12h = [p for p in upcoming_prices if p["in_hours"] <= 12]
+            if next_12h:
+                next_12h.sort(key=lambda x: x["price"])
+                result = next_12h[0]
+                result["is_cheap"] = False
+                return result
+
+            # Letzter Fallback: Günstigste Stunde insgesamt
             upcoming_prices.sort(key=lambda x: x["price"])
             result = upcoming_prices[0]
-            result["is_cheap"] = False  # Markiere als "nicht wirklich günstig"
+            result["is_cheap"] = False
             return result
 
         except Exception as e:
