@@ -1150,7 +1150,29 @@ class PVManagementController:
             _LOGGER.warning("Negative Einspeisung restored, setze auf 0")
             self._total_feed_in_kwh = 0.0
 
+        # Plausibilitätsprüfung: Eigenverbrauch + Einspeisung sollte <= PV Produktion sein
+        pv_total = self._pv_production_kwh
+        if pv_total > 0:
+            total_tracked = self._total_self_consumption_kwh + self._total_feed_in_kwh
+            # Toleranz von 5% wegen Messungenauigkeiten
+            if total_tracked > pv_total * 1.05:
+                _LOGGER.warning(
+                    "Unplausible restored Werte: %.2f kWh self + %.2f kWh feed = %.2f kWh > %.2f kWh PV. Trigger manual re-init.",
+                    self._total_self_consumption_kwh,
+                    self._total_feed_in_kwh,
+                    total_tracked,
+                    pv_total,
+                )
+
         self._restored = True
+
+        # WICHTIG: Nach Restore die _last_* Werte auf aktuelle Sensor-Werte setzen
+        # damit das Delta-Tracking korrekt funktioniert
+        self._last_pv_production_kwh = self._pv_production_kwh
+        self._last_grid_export_kwh = self._grid_export_kwh
+        self._last_grid_import_kwh = self._grid_import_kwh
+        self._last_consumption_kwh = self._consumption_kwh
+
         _LOGGER.info(
             "PV Management restored: %.2f kWh self, %.2f kWh feed, %.2f€ savings, %.2f€ earnings, first_seen=%s",
             self._total_self_consumption_kwh,
