@@ -19,8 +19,8 @@ from .const import (
     CONF_AUTO_CHARGE_WINTER_ONLY, CONF_AUTO_CHARGE_PV_THRESHOLD, CONF_AUTO_CHARGE_PRICE_QUANTILE,
     CONF_AUTO_CHARGE_MIN_SOC, CONF_AUTO_CHARGE_TARGET_SOC, CONF_AUTO_CHARGE_MIN_PRICE_DIFF,
     CONF_AUTO_CHARGE_POWER,
-    CONF_DISCHARGE_ENABLED, CONF_DISCHARGE_PRICE_QUANTILE,
-    CONF_DISCHARGE_HOLD_SOC, CONF_DISCHARGE_ALLOW_SOC,
+    CONF_DISCHARGE_ENABLED, CONF_DISCHARGE_WINTER_ONLY, CONF_DISCHARGE_PRICE_QUANTILE,
+    CONF_DISCHARGE_HOLD_SOC, CONF_DISCHARGE_ALLOW_SOC, CONF_DISCHARGE_SUMMER_SOC,
     DEFAULT_NAME, DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
@@ -30,8 +30,8 @@ from .const import (
     DEFAULT_AUTO_CHARGE_WINTER_ONLY, DEFAULT_AUTO_CHARGE_PV_THRESHOLD, DEFAULT_AUTO_CHARGE_PRICE_QUANTILE,
     DEFAULT_AUTO_CHARGE_MIN_SOC, DEFAULT_AUTO_CHARGE_TARGET_SOC, DEFAULT_AUTO_CHARGE_MIN_PRICE_DIFF,
     DEFAULT_AUTO_CHARGE_POWER,
-    DEFAULT_DISCHARGE_ENABLED, DEFAULT_DISCHARGE_PRICE_QUANTILE,
-    DEFAULT_DISCHARGE_HOLD_SOC, DEFAULT_DISCHARGE_ALLOW_SOC,
+    DEFAULT_DISCHARGE_ENABLED, DEFAULT_DISCHARGE_WINTER_ONLY, DEFAULT_DISCHARGE_PRICE_QUANTILE,
+    DEFAULT_DISCHARGE_HOLD_SOC, DEFAULT_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_SUMMER_SOC,
     RANGE_COST, RANGE_OFFSET, RANGE_BATTERY_SOC, RANGE_PV_POWER,
     PRICE_UNIT_EUR, PRICE_UNIT_CENT,
 )
@@ -323,6 +323,10 @@ class PVManagementOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_DISCHARGE_ENABLED, default=self._get_val(CONF_DISCHARGE_ENABLED, DEFAULT_DISCHARGE_ENABLED)):
                     selector.BooleanSelector(),
 
+                # Nur im Winter (Okt-März)
+                vol.Optional(CONF_DISCHARGE_WINTER_ONLY, default=self._get_val(CONF_DISCHARGE_WINTER_ONLY, DEFAULT_DISCHARGE_WINTER_ONLY)):
+                    selector.BooleanSelector(),
+
                 # Preis-Quantile ab dem entladen wird (0.7 = teuerste 30% der Stunden)
                 vol.Optional(CONF_DISCHARGE_PRICE_QUANTILE, default=self._get_val(CONF_DISCHARGE_PRICE_QUANTILE, DEFAULT_DISCHARGE_PRICE_QUANTILE)):
                     selector.NumberSelector(
@@ -339,6 +343,12 @@ class PVManagementOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_DISCHARGE_ALLOW_SOC, default=self._get_val(CONF_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_ALLOW_SOC)):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(min=0.0, max=100.0, step=5.0, unit_of_measurement="%", mode=selector.NumberSelectorMode.SLIDER)
+                    ),
+
+                # SOC im Sommer (normale Entladung, z.B. 1%)
+                vol.Optional(CONF_DISCHARGE_SUMMER_SOC, default=self._get_val(CONF_DISCHARGE_SUMMER_SOC, DEFAULT_DISCHARGE_SUMMER_SOC)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(min=0.0, max=100.0, step=1.0, unit_of_measurement="%", mode=selector.NumberSelectorMode.BOX)
                     ),
             })
         )

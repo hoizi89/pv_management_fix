@@ -141,15 +141,19 @@
         "description": "Steuert wann die Batterie entladen werden darf.\n\nIdee: Batterie fuer teure Stunden aufsparen statt tagsüber zu entladen.\n\nDer Binary Sensor zeigt an wann Entladen erlaubt ist.",
         "data": {
           "discharge_enabled": "Entlade-Steuerung aktivieren",
+          "discharge_winter_only": "Nur im Winter aktiv",
           "discharge_price_quantile": "Preis-Quantile Schwelle",
-          "discharge_hold_soc": "Halten-SOC",
-          "discharge_allow_soc": "Entladen-SOC"
+          "discharge_hold_soc": "Halten-SOC (Winter)",
+          "discharge_allow_soc": "Entladen-SOC (Winter)",
+          "discharge_summer_soc": "Sommer-SOC"
         },
         "data_description": {
           "discharge_enabled": "Aktiviert die Entlade-Steuerung (Binary Sensor)",
+          "discharge_winter_only": "Wenn aktiviert, nur von Oktober bis Maerz aktiv. Im Sommer normale Entladung.",
           "discharge_price_quantile": "0=billigste, 1=teuerste. Bei 0.7 nur entladen wenn Preis in den teuersten 30%",
-          "discharge_hold_soc": "Entladungstiefe wenn NICHT entladen werden soll (Batterie halten)",
-          "discharge_allow_soc": "Entladungstiefe wenn entladen werden darf (bis hierhin entladen)"
+          "discharge_hold_soc": "Entladungstiefe wenn NICHT entladen werden soll (Batterie halten im Winter)",
+          "discharge_allow_soc": "Entladungstiefe wenn entladen werden darf (bis hierhin entladen im Winter)",
+          "discharge_summer_soc": "Entladungstiefe im Sommer (April-September) - normal 1%"
         }
       },
       "advanced": {

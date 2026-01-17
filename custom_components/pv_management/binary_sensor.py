@@ -228,6 +228,12 @@ class DischargeBinarySensor(BinarySensorEntity):
             "grund": self.ctrl.discharge_reason,
             "ziel_entladungstiefe": self.ctrl.discharge_target_soc,
 
+            # === WINTER/SOMMER ===
+            "nur_winter_aktiv": self.ctrl.discharge_winter_only,
+            "ist_winter": self.ctrl.is_winter,
+            "sommer_modus": self.ctrl.discharge_is_summer_mode,
+            "winter_monate": "Oktober bis März",
+
             # === AKTUELLE WERTE ===
             "aktueller_preis_quantile": round(self.ctrl.epex_quantile, 2) if self.ctrl.has_epex_integration else None,
             "aktueller_preis_ct": round(self.ctrl.current_electricity_price * 100, 1),
@@ -237,6 +243,7 @@ class DischargeBinarySensor(BinarySensorEntity):
             "schwelle_preis_quantile": self.ctrl.discharge_price_quantile,
             "halten_soc": self.ctrl.discharge_hold_soc,
             "entladen_bis_soc": self.ctrl.discharge_allow_soc,
+            "sommer_soc": self.ctrl.discharge_summer_soc,
 
             # === INTEGRATION STATUS ===
             "epex_integration": self.ctrl.has_epex_integration,

@@ -25,8 +25,8 @@ from .const import (
     CONF_AUTO_CHARGE_ENABLED, CONF_AUTO_CHARGE_WINTER_ONLY, CONF_AUTO_CHARGE_PV_THRESHOLD,
     CONF_AUTO_CHARGE_PRICE_QUANTILE, CONF_AUTO_CHARGE_MIN_SOC, CONF_AUTO_CHARGE_TARGET_SOC,
     CONF_AUTO_CHARGE_MIN_PRICE_DIFF, CONF_AUTO_CHARGE_POWER,
-    CONF_DISCHARGE_ENABLED, CONF_DISCHARGE_PRICE_QUANTILE,
-    CONF_DISCHARGE_HOLD_SOC, CONF_DISCHARGE_ALLOW_SOC,
+    CONF_DISCHARGE_ENABLED, CONF_DISCHARGE_WINTER_ONLY, CONF_DISCHARGE_PRICE_QUANTILE,
+    CONF_DISCHARGE_HOLD_SOC, CONF_DISCHARGE_ALLOW_SOC, CONF_DISCHARGE_SUMMER_SOC,
     DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
@@ -36,8 +36,8 @@ from .const import (
     DEFAULT_AUTO_CHARGE_ENABLED, DEFAULT_AUTO_CHARGE_WINTER_ONLY, DEFAULT_AUTO_CHARGE_PV_THRESHOLD,
     DEFAULT_AUTO_CHARGE_PRICE_QUANTILE, DEFAULT_AUTO_CHARGE_MIN_SOC, DEFAULT_AUTO_CHARGE_TARGET_SOC,
     DEFAULT_AUTO_CHARGE_MIN_PRICE_DIFF, DEFAULT_AUTO_CHARGE_POWER,
-    DEFAULT_DISCHARGE_ENABLED, DEFAULT_DISCHARGE_PRICE_QUANTILE,
-    DEFAULT_DISCHARGE_HOLD_SOC, DEFAULT_DISCHARGE_ALLOW_SOC,
+    DEFAULT_DISCHARGE_ENABLED, DEFAULT_DISCHARGE_WINTER_ONLY, DEFAULT_DISCHARGE_PRICE_QUANTILE,
+    DEFAULT_DISCHARGE_HOLD_SOC, DEFAULT_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_SUMMER_SOC,
     PRICE_UNIT_CENT,
     RECOMMENDATION_DARK_GREEN, RECOMMENDATION_GREEN, RECOMMENDATION_YELLOW, RECOMMENDATION_ORANGE, RECOMMENDATION_RED,
 )
@@ -190,9 +190,11 @@ class PVManagementController:
 
         # Discharge Control Einstellungen (Entlade-Steuerung)
         self.discharge_enabled = opts.get(CONF_DISCHARGE_ENABLED, DEFAULT_DISCHARGE_ENABLED)
+        self.discharge_winter_only = opts.get(CONF_DISCHARGE_WINTER_ONLY, DEFAULT_DISCHARGE_WINTER_ONLY)
         self.discharge_price_quantile = opts.get(CONF_DISCHARGE_PRICE_QUANTILE, DEFAULT_DISCHARGE_PRICE_QUANTILE)
         self.discharge_hold_soc = opts.get(CONF_DISCHARGE_HOLD_SOC, DEFAULT_DISCHARGE_HOLD_SOC)
         self.discharge_allow_soc = opts.get(CONF_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_ALLOW_SOC)
+        self.discharge_summer_soc = opts.get(CONF_DISCHARGE_SUMMER_SOC, DEFAULT_DISCHARGE_SUMMER_SOC)
 
     @property
     def is_winter(self) -> bool:
@@ -460,19 +462,31 @@ class PVManagementController:
     # =========================================================================
 
     @property
+    def discharge_is_summer_mode(self) -> bool:
+        """Prüft ob Sommer-Modus aktiv ist (normale Entladung)."""
+        if not self.discharge_enabled:
+            return False
+        return self.discharge_winter_only and not self.is_winter
+
+    @property
     def should_discharge(self) -> bool:
         """
         Prüft ob die Batterie jetzt entladen werden sollte (teure Stunden).
 
         Bedingungen:
         1. Discharge Control ist aktiviert
-        2. EPEX Quantile ist über dem Schwellwert (teurer Strom)
-        3. Batterie hat genug Ladung
+        2. Winter-Only: Im Sommer → immer False (normale Entladung)
+        3. EPEX Quantile ist über dem Schwellwert (teurer Strom)
 
         Wenn True: Entladungstiefe auf discharge_allow_soc setzen (Batterie kann entladen)
         Wenn False: Entladungstiefe auf discharge_hold_soc setzen (Batterie wird gehalten)
+        Im Sommer: Entladungstiefe auf discharge_summer_soc setzen (normal, z.B. 1%)
         """
         if not self.discharge_enabled:
+            return False
+
+        # Im Sommer: Normale Entladung, keine Steuerung
+        if self.discharge_winter_only and not self.is_winter:
             return False
 
         if not self.has_epex_integration:
@@ -487,6 +501,10 @@ class PVManagementController:
         """Gibt den Grund für die Entlade-Empfehlung zurück."""
         if not self.discharge_enabled:
             return "Entlade-Steuerung deaktiviert"
+
+        # Sommer-Modus
+        if self.discharge_winter_only and not self.is_winter:
+            return f"Sommer-Modus (Apr-Sep) → Normal ({self.discharge_summer_soc:.0f}%)"
 
         if not self.has_epex_integration:
             price_ct = self.current_electricity_price * 100
@@ -505,6 +523,10 @@ class PVManagementController:
     @property
     def discharge_target_soc(self) -> float:
         """Gibt den Ziel-SOC basierend auf Entlade-Empfehlung zurück."""
+        # Sommer-Modus: Normale Entladung
+        if self.discharge_winter_only and not self.is_winter:
+            return self.discharge_summer_soc  # z.B. 1% - normale Entladung im Sommer
+
         if self.should_discharge:
             return self.discharge_allow_soc  # z.B. 20% - Batterie kann entladen werden
         else:

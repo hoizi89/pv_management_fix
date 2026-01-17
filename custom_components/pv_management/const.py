@@ -101,15 +101,19 @@ DEFAULT_AUTO_CHARGE_POWER: Final[float] = 3000.0  # W - Ladeleistung beim Auto-C
 
 # --- Discharge Control (Entlade-Steuerung) ------------------------------------
 CONF_DISCHARGE_ENABLED: Final[str] = "discharge_enabled"
+CONF_DISCHARGE_WINTER_ONLY: Final[str] = "discharge_winter_only"
 CONF_DISCHARGE_PRICE_QUANTILE: Final[str] = "discharge_price_quantile"
 CONF_DISCHARGE_HOLD_SOC: Final[str] = "discharge_hold_soc"
 CONF_DISCHARGE_ALLOW_SOC: Final[str] = "discharge_allow_soc"
+CONF_DISCHARGE_SUMMER_SOC: Final[str] = "discharge_summer_soc"
 
 # Discharge Defaults
 DEFAULT_DISCHARGE_ENABLED: Final[bool] = False
+DEFAULT_DISCHARGE_WINTER_ONLY: Final[bool] = True  # Nur im Winter aktiv (Okt-März)
 DEFAULT_DISCHARGE_PRICE_QUANTILE: Final[float] = 0.7  # 0-1, über diesem Wert ist "teuer" → entladen
 DEFAULT_DISCHARGE_HOLD_SOC: Final[float] = 80.0  # % - Batterie halten über diesem Wert
 DEFAULT_DISCHARGE_ALLOW_SOC: Final[float] = 20.0  # % - Batterie kann bis hierhin entladen werden
+DEFAULT_DISCHARGE_SUMMER_SOC: Final[float] = 1.0  # % - Im Sommer normale Entladung (1%)
 
 # --- Ranges für Config Flow / Options -----------------------------------------
 RANGE_PRICE_EUR: Final[dict] = {"min": 0.01, "max": 1.0, "step": 0.001}
