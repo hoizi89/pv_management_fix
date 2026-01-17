@@ -1630,13 +1630,20 @@ class PVManagementController:
         }
 
     def _load_epex_forecast(self, state) -> None:
-        """Lädt EPEX Preisprognose aus dem 'data' Attribut."""
+        """Lädt EPEX Preisprognose aus verschiedenen Attributen."""
         try:
             if state and state.attributes:
-                data = state.attributes.get("data")
-                if data and isinstance(data, list):
-                    self._epex_price_forecast = data
-                    _LOGGER.debug("EPEX Preisprognose geladen: %d Einträge", len(data))
+                # Versuche verschiedene Attribut-Namen (je nach Integration)
+                for attr_name in ["data", "prices", "forecast", "today", "price_data", "raw_today"]:
+                    data = state.attributes.get(attr_name)
+                    if data and isinstance(data, list) and len(data) > 0:
+                        self._epex_price_forecast = data
+                        _LOGGER.debug("EPEX Preisprognose aus '%s' geladen: %d Einträge", attr_name, len(data))
+                        return
+
+                # Log verfügbare Attribute für Debugging
+                attr_keys = list(state.attributes.keys())
+                _LOGGER.debug("EPEX Sensor Attribute (keine Preisprognose gefunden): %s", attr_keys)
         except Exception as e:
             _LOGGER.debug("Konnte EPEX Preisprognose nicht laden: %s", e)
 
@@ -1821,6 +1828,9 @@ class PVManagementController:
             recommendation_changed = True
         elif entity_id == self.epex_quantile_entity:
             self._epex_quantile = value
+            # Versuche auch hier Preisprognose zu laden (manche Integrationen haben sie hier)
+            if not self._epex_price_forecast:
+                self._load_epex_forecast(new_state)
             recommendation_changed = True
 
         # Solcast Sensor
@@ -1881,6 +1891,9 @@ class PVManagementController:
             if state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                 try:
                     self._epex_quantile = float(state.state)
+                    # Versuche auch hier Preisprognose zu laden
+                    if not self._epex_price_forecast:
+                        self._load_epex_forecast(state)
                 except (ValueError, TypeError):
                     pass
 
