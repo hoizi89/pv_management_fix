@@ -94,7 +94,7 @@ DEFAULT_AUTO_CHARGE_PV_THRESHOLD: Final[float] = 5.0  # kWh - unter dieser Progn
 DEFAULT_AUTO_CHARGE_PRICE_QUANTILE: Final[float] = 0.3  # 0-1, unter diesem Wert ist "günstig"
 DEFAULT_AUTO_CHARGE_MIN_SOC: Final[float] = 30.0  # % - nur laden wenn SOC unter diesem Wert
 DEFAULT_AUTO_CHARGE_TARGET_SOC: Final[float] = 80.0  # % - Ziel-SOC beim Laden
-DEFAULT_AUTO_CHARGE_MIN_PRICE_DIFF: Final[float] = 10.0  # ct/kWh - min. Differenz (inkl. ~15% Ladeverlust)
+DEFAULT_AUTO_CHARGE_MIN_PRICE_DIFF: Final[float] = 15.0  # ct/kWh - min. Differenz (Ladeverlust + Batterie/WR-Verschleiß)
 DEFAULT_AUTO_CHARGE_POWER: Final[float] = 3000.0  # W - Ladeleistung beim Auto-Charge
 
 # --- Ranges für Config Flow / Options -----------------------------------------
