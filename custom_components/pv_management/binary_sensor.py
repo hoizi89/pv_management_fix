@@ -125,4 +125,7 @@ class AutoChargeBinarySensor(BinarySensorEntity):
             "epex_integration": self.ctrl.has_epex_integration,
             "solcast_integration": self.ctrl.has_solcast_integration,
             "batterie_sensor_konfiguriert": bool(self.ctrl.battery_soc_entity),
+
+            # Statistiken
+            **self.ctrl.auto_charge_stats,
         }

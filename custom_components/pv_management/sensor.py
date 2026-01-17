@@ -205,6 +205,11 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
                 # Strompreis-Tracking
                 "tracked_grid_import_kwh": safe_float(attrs.get("tracked_grid_import_kwh")),
                 "total_grid_import_cost": safe_float(attrs.get("total_grid_import_cost")),
+                # Auto-Charge Statistiken
+                "auto_charge_count": safe_float(attrs.get("auto_charge_count")),
+                "auto_charge_total_hours": safe_float(attrs.get("auto_charge_total_hours")),
+                "auto_charge_total_kwh": safe_float(attrs.get("auto_charge_total_kwh")),
+                "auto_charge_estimated_savings": safe_float(attrs.get("auto_charge_estimated_savings")),
             }
 
             _LOGGER.info(
@@ -243,6 +248,11 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
             # Strompreis-Tracking (werden restored)
             "tracked_grid_import_kwh": round(self.ctrl._tracked_grid_import_kwh, 4),
             "total_grid_import_cost": round(self.ctrl._total_grid_import_cost, 4),
+            # Auto-Charge Statistiken (werden restored)
+            "auto_charge_count": self.ctrl._auto_charge_count,
+            "auto_charge_total_hours": round(self.ctrl._auto_charge_total_hours, 2),
+            "auto_charge_total_kwh": round(self.ctrl._auto_charge_total_kwh, 2),
+            "auto_charge_estimated_savings": round(self.ctrl._auto_charge_estimated_savings, 2),
             # Info
             "calculation_method": "incremental (dynamic prices supported)",
         }

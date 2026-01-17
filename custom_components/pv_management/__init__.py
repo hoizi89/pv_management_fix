@@ -104,6 +104,14 @@ class PVManagementController:
         self._total_grid_import_cost = 0.0  # Gesamtkosten Netzbezug in €
         self._tracked_grid_import_kwh = 0.0  # Netzbezug für Durchschnittsberechnung
 
+        # Auto-Charge Statistiken
+        self._auto_charge_count = 0  # Anzahl Aktivierungen
+        self._auto_charge_total_hours = 0.0  # Gesamte Ladezeit in Stunden
+        self._auto_charge_total_kwh = 0.0  # Geladene kWh durch Auto-Charge
+        self._auto_charge_estimated_savings = 0.0  # Geschätzte Ersparnis in €
+        self._auto_charge_last_start = None  # Zeitpunkt des letzten Starts
+        self._auto_charge_was_active = False  # War Auto-Charge im letzten Zyklus aktiv?
+
         # Flag ob Werte aus Restore geladen wurden
         self._restored = False
         self._first_seen_date: date | None = None
@@ -510,6 +518,58 @@ class PVManagementController:
             return "Laden empfohlen: " + ", ".join(reasons)
         else:
             return "Keine Daten verfügbar"
+
+    def track_auto_charge_activity(self) -> None:
+        """
+        Trackt Auto-Charge Aktivität für Statistiken.
+        Sollte regelmäßig aufgerufen werden (z.B. bei jedem Sensor-Update).
+        """
+        is_active = self.should_auto_charge and self.auto_charge_enabled
+
+        if is_active and not self._auto_charge_was_active:
+            # Auto-Charge wurde gerade gestartet
+            self._auto_charge_count += 1
+            self._auto_charge_last_start = datetime.now()
+            _LOGGER.info("Auto-Charge gestartet (#%d)", self._auto_charge_count)
+
+        elif not is_active and self._auto_charge_was_active and self._auto_charge_last_start:
+            # Auto-Charge wurde gerade beendet
+            duration = datetime.now() - self._auto_charge_last_start
+            hours = duration.total_seconds() / 3600
+            self._auto_charge_total_hours += hours
+
+            # Schätze geladene kWh (Ladeleistung × Zeit)
+            estimated_kwh = (self.auto_charge_power / 1000) * hours
+            self._auto_charge_total_kwh += estimated_kwh
+
+            # Schätze Ersparnis (Differenz zwischen billig und Durchschnitt)
+            price_diff = self.epex_price_diff_today
+            if price_diff:
+                # Ersparnis = geladene kWh × (Preisdifferenz - Verluste)
+                # Annahme: ~15% Verluste
+                net_savings_per_kwh = (price_diff * 0.85) / 100  # ct → €
+                savings = estimated_kwh * net_savings_per_kwh
+                self._auto_charge_estimated_savings += savings
+
+            _LOGGER.info(
+                "Auto-Charge beendet: %.1fh, ~%.1f kWh, ~%.2f€ gespart",
+                hours, estimated_kwh, savings if price_diff else 0
+            )
+            self._auto_charge_last_start = None
+
+        self._auto_charge_was_active = is_active
+
+    @property
+    def auto_charge_stats(self) -> dict:
+        """Gibt Auto-Charge Statistiken zurück."""
+        return {
+            "aktivierungen_gesamt": self._auto_charge_count,
+            "ladezeit_gesamt_stunden": round(self._auto_charge_total_hours, 1),
+            "geladene_kwh_geschaetzt": round(self._auto_charge_total_kwh, 1),
+            "ersparnis_geschaetzt_eur": round(self._auto_charge_estimated_savings, 2),
+            "aktuell_aktiv": self._auto_charge_was_active,
+            "letzter_start": self._auto_charge_last_start.isoformat() if self._auto_charge_last_start else None,
+        }
 
     @property
     def next_cheap_hour(self) -> dict | None:
@@ -1339,6 +1399,9 @@ class PVManagementController:
 
     def _notify_entities(self) -> None:
         """Informiert alle Entities über Zustandsänderungen."""
+        # Tracke Auto-Charge Aktivität für Statistiken
+        self.track_auto_charge_activity()
+
         for cb in list(self._entity_listeners):  # Copy list to avoid modification during iteration
             try:
                 cb()
@@ -1362,6 +1425,12 @@ class PVManagementController:
         # Strompreis-Tracking Daten wiederherstellen
         self._tracked_grid_import_kwh = safe_float(data.get("tracked_grid_import_kwh"))
         self._total_grid_import_cost = safe_float(data.get("total_grid_import_cost"))
+
+        # Auto-Charge Statistiken wiederherstellen
+        self._auto_charge_count = int(safe_float(data.get("auto_charge_count")))
+        self._auto_charge_total_hours = safe_float(data.get("auto_charge_total_hours"))
+        self._auto_charge_total_kwh = safe_float(data.get("auto_charge_total_kwh"))
+        self._auto_charge_estimated_savings = safe_float(data.get("auto_charge_estimated_savings"))
 
         first_seen = data.get("first_seen_date")
         if first_seen:
@@ -1493,6 +1562,11 @@ class PVManagementController:
             # Strompreis-Tracking
             "tracked_grid_import_kwh": self._tracked_grid_import_kwh,
             "total_grid_import_cost": self._total_grid_import_cost,
+            # Auto-Charge Statistiken
+            "auto_charge_count": self._auto_charge_count,
+            "auto_charge_total_hours": self._auto_charge_total_hours,
+            "auto_charge_total_kwh": self._auto_charge_total_kwh,
+            "auto_charge_estimated_savings": self._auto_charge_estimated_savings,
         }
 
     def _load_epex_forecast(self, state) -> None:
