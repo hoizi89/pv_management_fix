@@ -1654,15 +1654,45 @@ class PVManagementController:
         current_export = self._grid_export_kwh
         current_import = self._grid_import_kwh
 
-        if self._last_pv_production_kwh is None:
+        # Initialisierung: Alle _last_* Variablen müssen gesetzt sein
+        if self._last_pv_production_kwh is None or self._last_grid_import_kwh is None:
             self._last_pv_production_kwh = current_pv
             self._last_grid_export_kwh = current_export
             self._last_grid_import_kwh = current_import
+            _LOGGER.info(
+                "Energie-Tracking initialisiert: PV=%.2f, Export=%.2f, Import=%.2f kWh",
+                current_pv, current_export, current_import
+            )
             return
 
         delta_pv = current_pv - self._last_pv_production_kwh
         delta_export = current_export - self._last_grid_export_kwh
-        delta_import = current_import - (self._last_grid_import_kwh or 0)
+        delta_import = current_import - self._last_grid_import_kwh
+
+        # Schutz gegen unrealistisch große Deltas (z.B. nach Sensor-Reset oder Bug)
+        # Max 50 kWh pro Update ist realistisch (50kW für 1 Stunde)
+        MAX_DELTA_KWH = 50.0
+        if delta_pv > MAX_DELTA_KWH:
+            _LOGGER.warning(
+                "PV Delta unrealistisch groß (%.1f kWh > %d), ignoriere und re-initialisiere",
+                delta_pv, MAX_DELTA_KWH
+            )
+            self._last_pv_production_kwh = current_pv
+            delta_pv = 0
+        if delta_export > MAX_DELTA_KWH:
+            _LOGGER.warning(
+                "Export Delta unrealistisch groß (%.1f kWh > %d), ignoriere und re-initialisiere",
+                delta_export, MAX_DELTA_KWH
+            )
+            self._last_grid_export_kwh = current_export
+            delta_export = 0
+        if delta_import > MAX_DELTA_KWH:
+            _LOGGER.warning(
+                "Import Delta unrealistisch groß (%.1f kWh > %d), ignoriere und re-initialisiere",
+                delta_import, MAX_DELTA_KWH
+            )
+            self._last_grid_import_kwh = current_import
+            delta_import = 0
 
         if delta_pv < 0:
             _LOGGER.debug("PV Delta negativ (%.3f), überspringe", delta_pv)
@@ -1923,6 +1953,23 @@ class PVManagementController:
             if hasattr(self, key) and value is not None:
                 setattr(self, key, value)
 
+    def reset_grid_import_tracking(self) -> None:
+        """Setzt das Strompreis-Tracking auf 0 zurück."""
+        _LOGGER.info(
+            "Strompreis-Tracking wird zurückgesetzt (war: %.2f kWh, %.2f €)",
+            self._tracked_grid_import_kwh,
+            self._total_grid_import_cost
+        )
+        self._tracked_grid_import_kwh = 0.0
+        self._total_grid_import_cost = 0.0
+        self._daily_grid_import_kwh = 0.0
+        self._daily_grid_import_cost = 0.0
+        self._monthly_grid_import_kwh = 0.0
+        self._monthly_grid_import_cost = 0.0
+        # Re-initialisiere auch den last-Wert um erneuten Sprung zu vermeiden
+        self._last_grid_import_kwh = self._grid_import_kwh
+        self._notify_entities()
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Setup der Integration."""
@@ -1931,6 +1978,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await ctrl.async_start()
+
+    # Service zum Zurücksetzen des Strompreis-Trackings registrieren
+    async def handle_reset_grid_import(call):
+        """Handle reset_grid_import service call."""
+        for entry_data in hass.data.get(DOMAIN, {}).values():
+            controller = entry_data.get(DATA_CTRL)
+            if controller:
+                controller.reset_grid_import_tracking()
+
+    if not hass.services.has_service(DOMAIN, "reset_grid_import"):
+        hass.services.async_register(
+            DOMAIN,
+            "reset_grid_import",
+            handle_reset_grid_import,
+        )
 
     entry.add_update_listener(_async_update_listener)
     return True
