@@ -113,7 +113,7 @@ DEFAULT_DISCHARGE_WINTER_ONLY: Final[bool] = True  # Nur im Winter aktiv (Okt-M�
 DEFAULT_DISCHARGE_PRICE_QUANTILE: Final[float] = 0.7  # 0-1, über diesem Wert ist "teuer" → entladen
 DEFAULT_DISCHARGE_HOLD_SOC: Final[float] = 80.0  # % - Batterie halten über diesem Wert
 DEFAULT_DISCHARGE_ALLOW_SOC: Final[float] = 20.0  # % - Batterie kann bis hierhin entladen werden
-DEFAULT_DISCHARGE_SUMMER_SOC: Final[float] = 1.0  # % - Im Sommer normale Entladung (1%)
+DEFAULT_DISCHARGE_SUMMER_SOC: Final[float] = 10.0  # % - Im Sommer normale Entladung (10%)
 
 # --- Ranges für Config Flow / Options -----------------------------------------
 RANGE_PRICE_EUR: Final[dict] = {"min": 0.01, "max": 1.0, "step": 0.001}

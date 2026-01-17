@@ -153,7 +153,7 @@
           "discharge_price_quantile": "0=billigste, 1=teuerste. Bei 0.7 nur entladen wenn Preis in den teuersten 30%",
           "discharge_hold_soc": "Entladungstiefe wenn NICHT entladen werden soll (Batterie halten im Winter)",
           "discharge_allow_soc": "Entladungstiefe wenn entladen werden darf (bis hierhin entladen im Winter)",
-          "discharge_summer_soc": "Entladungstiefe im Sommer (April-September) - normal 1%"
+          "discharge_summer_soc": "Entladungstiefe im Sommer (April-September) - normal 10%"
         }
       },
       "advanced": {
