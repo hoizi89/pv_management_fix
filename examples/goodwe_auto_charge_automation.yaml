@@ -36,12 +36,12 @@ automation:
         data:
           value: 80
 
-      # 2. Setze Ladeleistung (z.B. 3000W)
+      # 2. Setze Ladeleistung aus PV Management Einstellungen
       - service: number.set_value
         target:
           entity_id: number.goodwe_eco_mode_power  # <-- ANPASSEN falls anders benannt
         data:
-          value: 3000
+          value: "{{ state_attr('switch.pv_management_auto_charge', 'ladeleistung_w') | default(3000) }}"
 
       # 3. Aktiviere Eco Charge Modus
       - service: select.select_option

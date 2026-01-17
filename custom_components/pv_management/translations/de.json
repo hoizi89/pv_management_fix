@@ -92,7 +92,9 @@
           "auto_charge_pv_threshold": "Auto-Charge: PV-Prognose Schwelle",
           "auto_charge_price_quantile": "Auto-Charge: Preis-Quantile Schwelle",
           "auto_charge_min_soc": "Auto-Charge: Min. Batterie-SOC",
-          "auto_charge_target_soc": "Auto-Charge: Ziel Batterie-SOC"
+          "auto_charge_target_soc": "Auto-Charge: Ziel Batterie-SOC",
+          "auto_charge_min_price_diff": "Auto-Charge: Min. Preisdifferenz",
+          "auto_charge_power": "Auto-Charge: Ladeleistung"
         },
         "data_description": {
           "pv_production_entity": "Sensor fuer PV-Produktion in kWh",
@@ -126,7 +128,9 @@
           "auto_charge_pv_threshold": "Unter dieser PV-Prognose wird Laden empfohlen",
           "auto_charge_price_quantile": "Unter diesem Quantile-Wert ist der Preis guenstig genug zum Laden",
           "auto_charge_min_soc": "Nur laden wenn Batterie unter diesem SOC ist",
-          "auto_charge_target_soc": "Ziel-SOC beim automatischen Laden"
+          "auto_charge_target_soc": "Ziel-SOC beim automatischen Laden",
+          "auto_charge_min_price_diff": "Nur laden wenn Differenz zwischen billigstem und teuerstem Preis des Tages mindestens so gross ist",
+          "auto_charge_power": "Mit welcher Leistung die Batterie geladen werden soll"
         }
       }
     }

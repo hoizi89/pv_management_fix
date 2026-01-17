@@ -24,6 +24,7 @@ from .const import (
     CONF_EPEX_PRICE_ENTITY, CONF_EPEX_QUANTILE_ENTITY, CONF_SOLCAST_FORECAST_ENTITY,
     CONF_AUTO_CHARGE_ENABLED, CONF_AUTO_CHARGE_PV_THRESHOLD,
     CONF_AUTO_CHARGE_PRICE_QUANTILE, CONF_AUTO_CHARGE_MIN_SOC, CONF_AUTO_CHARGE_TARGET_SOC,
+    CONF_AUTO_CHARGE_MIN_PRICE_DIFF, CONF_AUTO_CHARGE_POWER,
     DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
@@ -32,6 +33,7 @@ from .const import (
     DEFAULT_PV_PEAK_POWER, DEFAULT_WINTER_BASE_LOAD,
     DEFAULT_AUTO_CHARGE_ENABLED, DEFAULT_AUTO_CHARGE_PV_THRESHOLD,
     DEFAULT_AUTO_CHARGE_PRICE_QUANTILE, DEFAULT_AUTO_CHARGE_MIN_SOC, DEFAULT_AUTO_CHARGE_TARGET_SOC,
+    DEFAULT_AUTO_CHARGE_MIN_PRICE_DIFF, DEFAULT_AUTO_CHARGE_POWER,
     PRICE_UNIT_CENT,
     RECOMMENDATION_DARK_GREEN, RECOMMENDATION_GREEN, RECOMMENDATION_YELLOW, RECOMMENDATION_ORANGE, RECOMMENDATION_RED,
 )
@@ -160,6 +162,8 @@ class PVManagementController:
         self.auto_charge_price_quantile = opts.get(CONF_AUTO_CHARGE_PRICE_QUANTILE, DEFAULT_AUTO_CHARGE_PRICE_QUANTILE)
         self.auto_charge_min_soc = opts.get(CONF_AUTO_CHARGE_MIN_SOC, DEFAULT_AUTO_CHARGE_MIN_SOC)
         self.auto_charge_target_soc = opts.get(CONF_AUTO_CHARGE_TARGET_SOC, DEFAULT_AUTO_CHARGE_TARGET_SOC)
+        self.auto_charge_min_price_diff = opts.get(CONF_AUTO_CHARGE_MIN_PRICE_DIFF, DEFAULT_AUTO_CHARGE_MIN_PRICE_DIFF)
+        self.auto_charge_power = opts.get(CONF_AUTO_CHARGE_POWER, DEFAULT_AUTO_CHARGE_POWER)
 
     @property
     def is_winter(self) -> bool:
@@ -371,6 +375,7 @@ class PVManagementController:
         2. PV-Prognose ist unter dem Schwellwert (schlechtes Wetter erwartet)
         3. Strompreis ist günstig (Quantile unter Schwellwert)
         4. Batterie-SOC ist unter dem Minimum (noch Platz zum Laden)
+        5. Preisdifferenz zwischen billig/teuer ist groß genug
         """
         if not self.auto_charge_enabled:
             return False
@@ -379,8 +384,9 @@ class PVManagementController:
         pv_condition = self._check_pv_condition()
         price_condition = self._check_price_condition()
         soc_condition = self._check_soc_condition()
+        price_diff_condition = self._check_price_diff_condition()
 
-        return pv_condition and price_condition and soc_condition
+        return pv_condition and price_condition and soc_condition and price_diff_condition
 
     def _check_pv_condition(self) -> bool:
         """Prüft ob PV-Prognose unter Schwellwert ist."""
@@ -403,6 +409,57 @@ class PVManagementController:
             return True
 
         return self._battery_soc < self.auto_charge_min_soc
+
+    def _check_price_diff_condition(self) -> bool:
+        """Prüft ob die Preisdifferenz groß genug ist um sich zu lohnen."""
+        price_diff = self.epex_price_diff_today
+        if price_diff is None:
+            # Ohne EPEX Daten: Bedingung überspringen
+            return True
+
+        # Preisdifferenz in ct/kWh
+        return price_diff >= self.auto_charge_min_price_diff
+
+    @property
+    def epex_price_diff_today(self) -> float | None:
+        """
+        Berechnet die Preisdifferenz (max - min) für heute in ct/kWh.
+        Verwendet die EPEX Preisprognose.
+        """
+        if not self._epex_price_forecast:
+            return None
+
+        try:
+            now = datetime.now()
+            today = now.date()
+
+            # Filtere Preise für heute
+            today_prices = []
+            for entry in self._epex_price_forecast:
+                entry_time = entry.get("start_time") or entry.get("time")
+                if entry_time:
+                    if isinstance(entry_time, str):
+                        entry_dt = datetime.fromisoformat(entry_time.replace("Z", "+00:00"))
+                    else:
+                        entry_dt = entry_time
+
+                    if entry_dt.date() == today:
+                        price = entry.get("price_eur_per_mwh") or entry.get("price")
+                        if price is not None:
+                            # Konvertiere zu ct/kWh falls nötig
+                            if price > 10:  # Wahrscheinlich EUR/MWh
+                                price = price / 10  # → ct/kWh
+                            today_prices.append(price)
+
+            if len(today_prices) < 2:
+                return None
+
+            price_diff = max(today_prices) - min(today_prices)
+            return round(price_diff, 2)
+
+        except Exception as e:
+            _LOGGER.debug("Fehler bei Preisdifferenz-Berechnung: %s", e)
+            return None
 
     @property
     def auto_charge_reason(self) -> str:
@@ -438,6 +495,14 @@ class PVManagementController:
                 reasons.append(f"Batterie niedrig ({self._battery_soc:.0f}% < {self.auto_charge_min_soc}%)")
             else:
                 blocks.append(f"Batterie ausreichend ({self._battery_soc:.0f}%)")
+
+        # Preisdifferenz
+        price_diff = self.epex_price_diff_today
+        if price_diff is not None:
+            if price_diff >= self.auto_charge_min_price_diff:
+                reasons.append(f"Preisdifferenz lohnt ({price_diff:.1f} ct ≥ {self.auto_charge_min_price_diff} ct)")
+            else:
+                blocks.append(f"Preisdifferenz zu gering ({price_diff:.1f} ct < {self.auto_charge_min_price_diff} ct)")
 
         if blocks:
             return "Nicht laden: " + ", ".join(blocks)

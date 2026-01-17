@@ -93,6 +93,7 @@ class AutoChargeBinarySensor(BinarySensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Detaillierte Infos für Debugging und Dashboards."""
         forecast = self.ctrl.solcast_forecast_today if self.ctrl.has_solcast_integration else self.ctrl.pv_forecast
+        price_diff = self.ctrl.epex_price_diff_today
 
         return {
             # Status
@@ -105,17 +106,20 @@ class AutoChargeBinarySensor(BinarySensorEntity):
             "aktueller_preis_quantile": round(self.ctrl.epex_quantile, 2) if self.ctrl.has_epex_integration else None,
             "aktueller_preis_ct": round(self.ctrl.current_electricity_price * 100, 1),
             "aktueller_batterie_soc": round(self.ctrl.battery_soc, 0) if self.ctrl.battery_soc_entity else None,
+            "preisdifferenz_heute_ct": price_diff,
 
             # Schwellwerte (zum Vergleich)
             "schwelle_pv_prognose_kwh": self.ctrl.auto_charge_pv_threshold,
             "schwelle_preis_quantile": self.ctrl.auto_charge_price_quantile,
             "schwelle_min_soc": self.ctrl.auto_charge_min_soc,
             "schwelle_ziel_soc": self.ctrl.auto_charge_target_soc,
+            "schwelle_min_preisdifferenz_ct": self.ctrl.auto_charge_min_price_diff,
 
             # Bedingungen einzeln
             "bedingung_pv_erfuellt": self.ctrl._check_pv_condition(),
             "bedingung_preis_erfuellt": self.ctrl._check_price_condition(),
             "bedingung_soc_erfuellt": self.ctrl._check_soc_condition(),
+            "bedingung_preisdiff_erfuellt": self.ctrl._check_price_diff_condition(),
 
             # Integration Status
             "epex_integration": self.ctrl.has_epex_integration,

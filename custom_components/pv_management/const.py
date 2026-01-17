@@ -65,6 +65,8 @@ CONF_AUTO_CHARGE_PV_THRESHOLD: Final[str] = "auto_charge_pv_threshold"
 CONF_AUTO_CHARGE_PRICE_QUANTILE: Final[str] = "auto_charge_price_quantile"
 CONF_AUTO_CHARGE_MIN_SOC: Final[str] = "auto_charge_min_soc"
 CONF_AUTO_CHARGE_TARGET_SOC: Final[str] = "auto_charge_target_soc"
+CONF_AUTO_CHARGE_MIN_PRICE_DIFF: Final[str] = "auto_charge_min_price_diff"
+CONF_AUTO_CHARGE_POWER: Final[str] = "auto_charge_power"
 
 # --- Defaults -----------------------------------------------------------------
 DEFAULT_NAME: Final[str] = "PV Management"
@@ -92,6 +94,8 @@ DEFAULT_AUTO_CHARGE_PV_THRESHOLD: Final[float] = 5.0  # kWh - unter dieser Progn
 DEFAULT_AUTO_CHARGE_PRICE_QUANTILE: Final[float] = 0.3  # 0-1, unter diesem Wert ist "günstig"
 DEFAULT_AUTO_CHARGE_MIN_SOC: Final[float] = 30.0  # % - nur laden wenn SOC unter diesem Wert
 DEFAULT_AUTO_CHARGE_TARGET_SOC: Final[float] = 80.0  # % - Ziel-SOC beim Laden
+DEFAULT_AUTO_CHARGE_MIN_PRICE_DIFF: Final[float] = 5.0  # ct/kWh - min. Differenz zwischen billig/teuer
+DEFAULT_AUTO_CHARGE_POWER: Final[float] = 3000.0  # W - Ladeleistung beim Auto-Charge
 
 # --- Ranges für Config Flow / Options -----------------------------------------
 RANGE_PRICE_EUR: Final[dict] = {"min": 0.01, "max": 1.0, "step": 0.001}

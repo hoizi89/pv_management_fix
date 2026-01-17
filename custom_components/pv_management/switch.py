@@ -105,9 +105,12 @@ class AutoChargeSwitch(SwitchEntity, RestoreEntity):
             "preis_quantile_schwelle": self.ctrl.auto_charge_price_quantile,
             "min_soc_prozent": self.ctrl.auto_charge_min_soc,
             "ziel_soc_prozent": self.ctrl.auto_charge_target_soc,
+            "min_preisdifferenz_ct": self.ctrl.auto_charge_min_price_diff,
+            "ladeleistung_w": self.ctrl.auto_charge_power,
             "aktuelle_pv_prognose_kwh": self.ctrl.solcast_forecast_today if self.ctrl.has_solcast_integration else self.ctrl.pv_forecast,
             "aktueller_preis_quantile": self.ctrl.epex_quantile if self.ctrl.has_epex_integration else None,
             "aktueller_batterie_soc": self.ctrl.battery_soc if self.ctrl.battery_soc_entity else None,
+            "preisdifferenz_heute_ct": self.ctrl.epex_price_diff_today,
             "sollte_jetzt_laden": self.ctrl.should_auto_charge if self._is_on else False,
             "grund": self.ctrl.auto_charge_reason if self._is_on else "Auto-Charge deaktiviert",
         }
