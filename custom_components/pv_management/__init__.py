@@ -94,6 +94,10 @@ class PVManagementController:
         self._accumulated_savings_self = 0.0
         self._accumulated_earnings_feed = 0.0
 
+        # Strompreis-Tracking für Durchschnittsberechnung (gewichtet nach Verbrauch)
+        self._total_grid_import_cost = 0.0  # Gesamtkosten Netzbezug in €
+        self._tracked_grid_import_kwh = 0.0  # Netzbezug für Durchschnittsberechnung
+
         # Flag ob Werte aus Restore geladen wurden
         self._restored = False
         self._first_seen_date: date | None = None
@@ -587,6 +591,60 @@ class PVManagementController:
     def grid_import_kwh(self) -> float:
         """Aktueller Netzbezug vom Sensor."""
         return self._grid_import_kwh
+
+    @property
+    def tracked_grid_import_kwh(self) -> float:
+        """Getrackte Netzbezug-kWh für Durchschnittsberechnung."""
+        return self._tracked_grid_import_kwh
+
+    @property
+    def total_grid_import_cost(self) -> float:
+        """Gesamtkosten Netzbezug in €."""
+        return self._total_grid_import_cost
+
+    @property
+    def average_electricity_price(self) -> float | None:
+        """
+        Gewichteter durchschnittlicher Strompreis in €/kWh.
+        Berechnet als: Gesamtkosten / Gesamtverbrauch
+        """
+        if self._tracked_grid_import_kwh <= 0:
+            return None
+        return self._total_grid_import_cost / self._tracked_grid_import_kwh
+
+    @property
+    def average_electricity_price_ct(self) -> float | None:
+        """Gewichteter durchschnittlicher Strompreis in ct/kWh."""
+        avg = self.average_electricity_price
+        if avg is None:
+            return None
+        return avg * 100
+
+    @property
+    def spot_vs_fixed_savings(self) -> float | None:
+        """
+        Ersparnis gegenüber Fixpreis (Energie AG 14,90 ct/kWh).
+        Positiv = Spot günstiger, Negativ = Fixpreis günstiger.
+        """
+        avg = self.average_electricity_price
+        if avg is None:
+            return None
+        # Vergleich mit Energie AG Tarif (14,90 ct/kWh = 0.149 €/kWh)
+        fixed_price = 0.149
+        diff_per_kwh = fixed_price - avg
+        return diff_per_kwh * self._tracked_grid_import_kwh
+
+    @property
+    def spot_vs_fixed_savings_treuebonus(self) -> float | None:
+        """
+        Ersparnis gegenüber Fixpreis mit Treuebonus (13,68 ct/kWh).
+        """
+        avg = self.average_electricity_price
+        if avg is None:
+            return None
+        fixed_price = 0.1368
+        diff_per_kwh = fixed_price - avg
+        return diff_per_kwh * self._tracked_grid_import_kwh
 
     @property
     def consumption_kwh(self) -> float:
@@ -1136,6 +1194,10 @@ class PVManagementController:
         self._accumulated_savings_self = safe_float(data.get("accumulated_savings_self"))
         self._accumulated_earnings_feed = safe_float(data.get("accumulated_earnings_feed"))
 
+        # Strompreis-Tracking Daten wiederherstellen
+        self._tracked_grid_import_kwh = safe_float(data.get("tracked_grid_import_kwh"))
+        self._total_grid_import_cost = safe_float(data.get("total_grid_import_cost"))
+
         first_seen = data.get("first_seen_date")
         if first_seen:
             try:
@@ -1263,6 +1325,9 @@ class PVManagementController:
             "accumulated_savings_self": self._accumulated_savings_self,
             "accumulated_earnings_feed": self._accumulated_earnings_feed,
             "first_seen_date": self._first_seen_date.isoformat() if self._first_seen_date else None,
+            # Strompreis-Tracking
+            "tracked_grid_import_kwh": self._tracked_grid_import_kwh,
+            "total_grid_import_cost": self._total_grid_import_cost,
         }
 
     def _load_epex_forecast(self, state) -> None:
@@ -1291,14 +1356,17 @@ class PVManagementController:
         """Verarbeitet Energie-Updates INKREMENTELL."""
         current_pv = self._pv_production_kwh
         current_export = self._grid_export_kwh
+        current_import = self._grid_import_kwh
 
         if self._last_pv_production_kwh is None:
             self._last_pv_production_kwh = current_pv
             self._last_grid_export_kwh = current_export
+            self._last_grid_import_kwh = current_import
             return
 
         delta_pv = current_pv - self._last_pv_production_kwh
         delta_export = current_export - self._last_grid_export_kwh
+        delta_import = current_import - (self._last_grid_import_kwh or 0)
 
         if delta_pv < 0:
             _LOGGER.debug("PV Delta negativ (%.3f), überspringe", delta_pv)
@@ -1309,6 +1377,11 @@ class PVManagementController:
             _LOGGER.debug("Export Delta negativ (%.3f), überspringe", delta_export)
             self._last_grid_export_kwh = current_export
             delta_export = 0
+
+        if delta_import < 0:
+            _LOGGER.debug("Import Delta negativ (%.3f), überspringe", delta_import)
+            self._last_grid_import_kwh = current_import
+            delta_import = 0
 
         delta_self_consumption = max(0.0, delta_pv - delta_export)
 
@@ -1330,8 +1403,21 @@ class PVManagementController:
                 delta_export, earnings_delta,
             )
 
+        # Strompreis-Tracking für Durchschnittsberechnung (Netzbezug)
+        if delta_import > 0:
+            price_electricity = self.current_electricity_price
+            import_cost = delta_import * price_electricity
+            self._tracked_grid_import_kwh += delta_import
+            self._total_grid_import_cost += import_cost
+            _LOGGER.debug(
+                "Import Delta: +%.3f kWh × %.4f€/kWh = %.4f€ (Durchschnitt: %.2f ct/kWh)",
+                delta_import, price_electricity, import_cost,
+                (self._total_grid_import_cost / self._tracked_grid_import_kwh * 100) if self._tracked_grid_import_kwh > 0 else 0
+            )
+
         self._last_pv_production_kwh = current_pv
         self._last_grid_export_kwh = current_export
+        self._last_grid_import_kwh = current_import
         self._notify_entities()
 
     @callback

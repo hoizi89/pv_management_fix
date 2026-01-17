@@ -71,6 +71,11 @@ async def async_setup_entry(
         PVProductionSensor(ctrl, name),
         InstallationCostSensor(ctrl, name),
         ConfigurationDiagnosticSensor(ctrl, name, entry),
+
+        # === STROMPREIS-VERGLEICH (Spot vs Fixpreis) ===
+        AverageElectricityPriceSensor(ctrl, name),
+        SpotVsFixedSavingsSensor(ctrl, name),
+        TotalGridImportCostSensor(ctrl, name),
     ]
 
     async_add_entities(entities)
@@ -198,6 +203,9 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
                 "accumulated_savings_self": safe_float(attrs.get("accumulated_savings_self")),
                 "accumulated_earnings_feed": safe_float(attrs.get("accumulated_earnings_feed")),
                 "first_seen_date": attrs.get("first_seen_date"),
+                # Strompreis-Tracking
+                "tracked_grid_import_kwh": safe_float(attrs.get("tracked_grid_import_kwh")),
+                "total_grid_import_cost": safe_float(attrs.get("total_grid_import_cost")),
             }
 
             _LOGGER.info(
@@ -233,6 +241,9 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
             "accumulated_savings_self": round(self.ctrl._accumulated_savings_self, 4),
             "accumulated_earnings_feed": round(self.ctrl._accumulated_earnings_feed, 4),
             "first_seen_date": self.ctrl._first_seen_date.isoformat() if self.ctrl._first_seen_date else None,
+            # Strompreis-Tracking (werden restored)
+            "tracked_grid_import_kwh": round(self.ctrl._tracked_grid_import_kwh, 4),
+            "total_grid_import_cost": round(self.ctrl._total_grid_import_cost, 4),
             # Info
             "calculation_method": "incremental (dynamic prices supported)",
         }
@@ -1294,3 +1305,158 @@ class NextCheapHourSensor(BaseEntity):
     def available(self) -> bool:
         """Sensor ist verfügbar wenn EPEX konfiguriert ist."""
         return True
+
+
+# =============================================================================
+# STROMPREIS-DURCHSCHNITTS-SENSOREN
+# =============================================================================
+
+
+class AverageElectricityPriceSensor(BaseEntity):
+    """
+    Durchschnittlicher Strompreis (gewichtet nach Verbrauch).
+
+    Zeigt den tatsächlich bezahlten Durchschnittspreis für Netzbezug.
+    Ideal zum Vergleich mit Fixpreis-Tarifen.
+    """
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Durchschnittlicher Strompreis",
+            unit="ct/kWh",
+            icon="mdi:chart-line",
+            state_class=SensorStateClass.MEASUREMENT,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        avg = self.ctrl.average_electricity_price_ct
+        if avg is None:
+            return None
+        return round(avg, 2)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        avg_eur = self.ctrl.average_electricity_price
+        return {
+            "tracked_import_kwh": round(self.ctrl.tracked_grid_import_kwh, 2),
+            "total_import_cost_eur": round(self.ctrl.total_grid_import_cost, 2),
+            "average_eur_per_kwh": f"{avg_eur:.4f}" if avg_eur else None,
+            "calculation": "Gesamtkosten / Gesamtverbrauch (gewichtet)",
+            "energie_ag_preis": "14,90 ct/kWh",
+            "energie_ag_treuebonus": "13,68 ct/kWh",
+        }
+
+
+class SpotVsFixedSavingsSensor(BaseEntity):
+    """
+    Ersparnis durch Spot-Tarif gegenüber Energie AG Fixpreis.
+
+    Positiv = Spot günstiger
+    Negativ = Fixpreis wäre günstiger gewesen
+    """
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Spot vs Fixpreis Ersparnis",
+            unit="€",
+            icon="mdi:piggy-bank-outline",
+            state_class=SensorStateClass.TOTAL,
+            device_class=SensorDeviceClass.MONETARY,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        savings = self.ctrl.spot_vs_fixed_savings
+        if savings is None:
+            return None
+        return round(savings, 2)
+
+    @property
+    def icon(self) -> str:
+        savings = self.ctrl.spot_vs_fixed_savings
+        if savings is None:
+            return "mdi:help-circle"
+        elif savings > 0:
+            return "mdi:piggy-bank"  # Spot günstiger
+        else:
+            return "mdi:currency-eur-off"  # Fixpreis wäre günstiger
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        avg = self.ctrl.average_electricity_price_ct
+        savings_normal = self.ctrl.spot_vs_fixed_savings
+        savings_treue = self.ctrl.spot_vs_fixed_savings_treuebonus
+        tracked_kwh = self.ctrl.tracked_grid_import_kwh
+
+        # Berechne wie viel pro kWh gespart wurde
+        diff_normal = (14.90 - avg) if avg else None
+        diff_treue = (13.68 - avg) if avg else None
+
+        return {
+            "durchschnittspreis_ct": f"{avg:.2f}" if avg else None,
+            "tracked_import_kwh": round(tracked_kwh, 2),
+            # Vergleich mit Energie AG Standard (14,90 ct)
+            "vergleich_14_90ct": {
+                "fixpreis_kosten_eur": round(tracked_kwh * 0.149, 2) if tracked_kwh > 0 else 0,
+                "spot_kosten_eur": round(self.ctrl.total_grid_import_cost, 2),
+                "ersparnis_eur": round(savings_normal, 2) if savings_normal else None,
+                "ersparnis_pro_kwh_ct": f"{diff_normal:.2f}" if diff_normal else None,
+                "bewertung": "Spot günstiger" if savings_normal and savings_normal > 0 else "Fixpreis günstiger" if savings_normal else None,
+            },
+            # Vergleich mit Energie AG Treuebonus (13,68 ct)
+            "vergleich_13_68ct_treuebonus": {
+                "fixpreis_kosten_eur": round(tracked_kwh * 0.1368, 2) if tracked_kwh > 0 else 0,
+                "spot_kosten_eur": round(self.ctrl.total_grid_import_cost, 2),
+                "ersparnis_eur": round(savings_treue, 2) if savings_treue else None,
+                "ersparnis_pro_kwh_ct": f"{diff_treue:.2f}" if diff_treue else None,
+                "bewertung": "Spot günstiger" if savings_treue and savings_treue > 0 else "Fixpreis günstiger" if savings_treue else None,
+            },
+            "empfehlung": self._get_recommendation(avg),
+        }
+
+    def _get_recommendation(self, avg_ct: float | None) -> str:
+        """Gibt Empfehlung basierend auf Durchschnittspreis."""
+        if avg_ct is None:
+            return "Noch keine Daten"
+        if avg_ct < 12.0:
+            return "Spot-Tarif sehr lohnend! Deutlich unter Fixpreis."
+        elif avg_ct < 13.68:
+            return "Spot-Tarif lohnt sich! Günstiger als Treuebonus-Tarif."
+        elif avg_ct < 14.90:
+            return "Spot-Tarif lohnt sich vs. Standard-Tarif."
+        elif avg_ct < 16.0:
+            return "Grenzwertig - Fixpreis könnte günstiger sein."
+        else:
+            return "Fixpreis wäre günstiger - evtl. Verbrauch optimieren."
+
+
+class TotalGridImportCostSensor(BaseEntity):
+    """Gesamtkosten für Netzbezug in Euro."""
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Netzbezug Kosten",
+            unit="€",
+            icon="mdi:cash-minus",
+            state_class=SensorStateClass.TOTAL,
+            device_class=SensorDeviceClass.MONETARY,
+        )
+
+    @property
+    def native_value(self) -> float:
+        return round(self.ctrl.total_grid_import_cost, 2)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        avg = self.ctrl.average_electricity_price_ct
+        return {
+            "tracked_import_kwh": round(self.ctrl.tracked_grid_import_kwh, 2),
+            "durchschnittspreis_ct": f"{avg:.2f}" if avg else None,
+        }
