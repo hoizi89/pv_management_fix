@@ -10,6 +10,8 @@ DATA_CTRL: Final[str] = "ctrl"
 PLATFORMS: Final[tuple[Platform, ...]] = (
     Platform.SENSOR,
     Platform.BUTTON,
+    Platform.SWITCH,
+    Platform.BINARY_SENSOR,
 )
 
 # --- Config keys (Setup) ------------------------------------------------------
@@ -57,6 +59,13 @@ CONF_PV_POWER_HIGH: Final[str] = "pv_power_high"
 CONF_PV_PEAK_POWER: Final[str] = "pv_peak_power"
 CONF_WINTER_BASE_LOAD: Final[str] = "winter_base_load"
 
+# --- Auto-Charge (Batterie automatisch laden) ---------------------------------
+CONF_AUTO_CHARGE_ENABLED: Final[str] = "auto_charge_enabled"
+CONF_AUTO_CHARGE_PV_THRESHOLD: Final[str] = "auto_charge_pv_threshold"
+CONF_AUTO_CHARGE_PRICE_QUANTILE: Final[str] = "auto_charge_price_quantile"
+CONF_AUTO_CHARGE_MIN_SOC: Final[str] = "auto_charge_min_soc"
+CONF_AUTO_CHARGE_TARGET_SOC: Final[str] = "auto_charge_target_soc"
+
 # --- Defaults -----------------------------------------------------------------
 DEFAULT_NAME: Final[str] = "PV Management"
 DEFAULT_ELECTRICITY_PRICE: Final[float] = 0.35  # €/kWh
@@ -76,6 +85,13 @@ DEFAULT_PRICE_LOW_THRESHOLD: Final[float] = 0.15   # €/kWh - günstig
 DEFAULT_PV_POWER_HIGH: Final[float] = 1000.0  # W - viel PV (Fallback)
 DEFAULT_PV_PEAK_POWER: Final[float] = 10000.0  # W - 10kWp Anlage
 DEFAULT_WINTER_BASE_LOAD: Final[float] = 0.0  # W - Grundlast Winter (z.B. Wärmepumpe)
+
+# Auto-Charge Defaults
+DEFAULT_AUTO_CHARGE_ENABLED: Final[bool] = False
+DEFAULT_AUTO_CHARGE_PV_THRESHOLD: Final[float] = 5.0  # kWh - unter dieser Prognose wird geladen
+DEFAULT_AUTO_CHARGE_PRICE_QUANTILE: Final[float] = 0.3  # 0-1, unter diesem Wert ist "günstig"
+DEFAULT_AUTO_CHARGE_MIN_SOC: Final[float] = 30.0  # % - nur laden wenn SOC unter diesem Wert
+DEFAULT_AUTO_CHARGE_TARGET_SOC: Final[float] = 80.0  # % - Ziel-SOC beim Laden
 
 # --- Ranges für Config Flow / Options -----------------------------------------
 RANGE_PRICE_EUR: Final[dict] = {"min": 0.01, "max": 1.0, "step": 0.001}

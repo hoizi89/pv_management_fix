@@ -22,12 +22,16 @@ from .const import (
     CONF_PRICE_HIGH_THRESHOLD, CONF_PRICE_LOW_THRESHOLD, CONF_PV_POWER_HIGH,
     CONF_PV_PEAK_POWER, CONF_WINTER_BASE_LOAD,
     CONF_EPEX_PRICE_ENTITY, CONF_EPEX_QUANTILE_ENTITY, CONF_SOLCAST_FORECAST_ENTITY,
+    CONF_AUTO_CHARGE_ENABLED, CONF_AUTO_CHARGE_PV_THRESHOLD,
+    CONF_AUTO_CHARGE_PRICE_QUANTILE, CONF_AUTO_CHARGE_MIN_SOC, CONF_AUTO_CHARGE_TARGET_SOC,
     DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
     DEFAULT_BATTERY_SOC_HIGH, DEFAULT_BATTERY_SOC_LOW,
     DEFAULT_PRICE_HIGH_THRESHOLD, DEFAULT_PRICE_LOW_THRESHOLD, DEFAULT_PV_POWER_HIGH,
     DEFAULT_PV_PEAK_POWER, DEFAULT_WINTER_BASE_LOAD,
+    DEFAULT_AUTO_CHARGE_ENABLED, DEFAULT_AUTO_CHARGE_PV_THRESHOLD,
+    DEFAULT_AUTO_CHARGE_PRICE_QUANTILE, DEFAULT_AUTO_CHARGE_MIN_SOC, DEFAULT_AUTO_CHARGE_TARGET_SOC,
     PRICE_UNIT_CENT,
     RECOMMENDATION_DARK_GREEN, RECOMMENDATION_GREEN, RECOMMENDATION_YELLOW, RECOMMENDATION_ORANGE, RECOMMENDATION_RED,
 )
@@ -149,6 +153,13 @@ class PVManagementController:
         self.pv_power_high = opts.get(CONF_PV_POWER_HIGH, DEFAULT_PV_POWER_HIGH)
         self.pv_peak_power = opts.get(CONF_PV_PEAK_POWER, DEFAULT_PV_PEAK_POWER)
         self.winter_base_load = opts.get(CONF_WINTER_BASE_LOAD, DEFAULT_WINTER_BASE_LOAD)
+
+        # Auto-Charge Einstellungen
+        self.auto_charge_enabled = opts.get(CONF_AUTO_CHARGE_ENABLED, DEFAULT_AUTO_CHARGE_ENABLED)
+        self.auto_charge_pv_threshold = opts.get(CONF_AUTO_CHARGE_PV_THRESHOLD, DEFAULT_AUTO_CHARGE_PV_THRESHOLD)
+        self.auto_charge_price_quantile = opts.get(CONF_AUTO_CHARGE_PRICE_QUANTILE, DEFAULT_AUTO_CHARGE_PRICE_QUANTILE)
+        self.auto_charge_min_soc = opts.get(CONF_AUTO_CHARGE_MIN_SOC, DEFAULT_AUTO_CHARGE_MIN_SOC)
+        self.auto_charge_target_soc = opts.get(CONF_AUTO_CHARGE_TARGET_SOC, DEFAULT_AUTO_CHARGE_TARGET_SOC)
 
     @property
     def is_winter(self) -> bool:
@@ -345,6 +356,95 @@ class PVManagementController:
     def has_solcast_integration(self) -> bool:
         """Prüft ob Solcast konfiguriert ist."""
         return bool(self.solcast_forecast_entity)
+
+    # =========================================================================
+    # AUTO-CHARGE LOGIK
+    # =========================================================================
+
+    @property
+    def should_auto_charge(self) -> bool:
+        """
+        Prüft ob die Batterie jetzt automatisch geladen werden sollte.
+
+        Bedingungen:
+        1. Auto-Charge ist aktiviert
+        2. PV-Prognose ist unter dem Schwellwert (schlechtes Wetter erwartet)
+        3. Strompreis ist günstig (Quantile unter Schwellwert)
+        4. Batterie-SOC ist unter dem Minimum (noch Platz zum Laden)
+        """
+        if not self.auto_charge_enabled:
+            return False
+
+        # Prüfe alle Bedingungen
+        pv_condition = self._check_pv_condition()
+        price_condition = self._check_price_condition()
+        soc_condition = self._check_soc_condition()
+
+        return pv_condition and price_condition and soc_condition
+
+    def _check_pv_condition(self) -> bool:
+        """Prüft ob PV-Prognose unter Schwellwert ist."""
+        forecast = self._solcast_forecast_today if self.has_solcast_integration else self._pv_forecast
+        return forecast < self.auto_charge_pv_threshold
+
+    def _check_price_condition(self) -> bool:
+        """Prüft ob Strompreis günstig genug ist."""
+        if not self.has_epex_integration:
+            # Ohne EPEX: Prüfe absoluten Preis
+            return self.current_electricity_price <= self.price_low_threshold
+
+        # Mit EPEX: Prüfe Quantile
+        return self._epex_quantile <= self.auto_charge_price_quantile
+
+    def _check_soc_condition(self) -> bool:
+        """Prüft ob Batterie unter Minimum ist."""
+        if not self.battery_soc_entity:
+            # Ohne Batterie-Sensor: immer True (keine Prüfung möglich)
+            return True
+
+        return self._battery_soc < self.auto_charge_min_soc
+
+    @property
+    def auto_charge_reason(self) -> str:
+        """Gibt den Grund für die Auto-Charge Empfehlung zurück."""
+        if not self.auto_charge_enabled:
+            return "Auto-Charge deaktiviert"
+
+        reasons = []
+        blocks = []
+
+        # PV-Prognose
+        forecast = self._solcast_forecast_today if self.has_solcast_integration else self._pv_forecast
+        if forecast < self.auto_charge_pv_threshold:
+            reasons.append(f"PV-Prognose niedrig ({forecast:.1f} kWh < {self.auto_charge_pv_threshold} kWh)")
+        else:
+            blocks.append(f"PV-Prognose zu hoch ({forecast:.1f} kWh)")
+
+        # Strompreis
+        if self.has_epex_integration:
+            if self._epex_quantile <= self.auto_charge_price_quantile:
+                reasons.append(f"Preis günstig (Quantile {self._epex_quantile:.2f} ≤ {self.auto_charge_price_quantile})")
+            else:
+                blocks.append(f"Preis zu hoch (Quantile {self._epex_quantile:.2f})")
+        else:
+            if self.current_electricity_price <= self.price_low_threshold:
+                reasons.append(f"Preis günstig ({self.current_electricity_price*100:.1f} ct)")
+            else:
+                blocks.append(f"Preis zu hoch ({self.current_electricity_price*100:.1f} ct)")
+
+        # Batterie SOC
+        if self.battery_soc_entity:
+            if self._battery_soc < self.auto_charge_min_soc:
+                reasons.append(f"Batterie niedrig ({self._battery_soc:.0f}% < {self.auto_charge_min_soc}%)")
+            else:
+                blocks.append(f"Batterie ausreichend ({self._battery_soc:.0f}%)")
+
+        if blocks:
+            return "Nicht laden: " + ", ".join(blocks)
+        elif reasons:
+            return "Laden empfohlen: " + ", ".join(reasons)
+        else:
+            return "Keine Daten verfügbar"
 
     @property
     def next_cheap_hour(self) -> dict | None:

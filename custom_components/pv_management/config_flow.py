@@ -16,12 +16,16 @@ from .const import (
     CONF_PRICE_HIGH_THRESHOLD, CONF_PRICE_LOW_THRESHOLD, CONF_PV_POWER_HIGH,
     CONF_PV_PEAK_POWER, CONF_WINTER_BASE_LOAD, CONF_SAVINGS_OFFSET,
     CONF_EPEX_PRICE_ENTITY, CONF_EPEX_QUANTILE_ENTITY, CONF_SOLCAST_FORECAST_ENTITY,
+    CONF_AUTO_CHARGE_PV_THRESHOLD, CONF_AUTO_CHARGE_PRICE_QUANTILE,
+    CONF_AUTO_CHARGE_MIN_SOC, CONF_AUTO_CHARGE_TARGET_SOC,
     DEFAULT_NAME, DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
     DEFAULT_BATTERY_SOC_HIGH, DEFAULT_BATTERY_SOC_LOW,
     DEFAULT_PRICE_HIGH_THRESHOLD, DEFAULT_PRICE_LOW_THRESHOLD, DEFAULT_PV_POWER_HIGH,
     DEFAULT_PV_PEAK_POWER, DEFAULT_WINTER_BASE_LOAD,
+    DEFAULT_AUTO_CHARGE_PV_THRESHOLD, DEFAULT_AUTO_CHARGE_PRICE_QUANTILE,
+    DEFAULT_AUTO_CHARGE_MIN_SOC, DEFAULT_AUTO_CHARGE_TARGET_SOC,
     RANGE_COST, RANGE_OFFSET, RANGE_BATTERY_SOC, RANGE_PV_POWER,
     PRICE_UNIT_EUR, PRICE_UNIT_CENT,
 )
@@ -304,5 +308,41 @@ class PVManagementOptionsFlow(config_entries.OptionsFlow):
                 # === SOLCAST INTEGRATION ===
                 vol.Optional(CONF_SOLCAST_FORECAST_ENTITY, default=get_val(CONF_SOLCAST_FORECAST_ENTITY)):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+
+                # === AUTO-CHARGE EINSTELLUNGEN ===
+                vol.Optional(CONF_AUTO_CHARGE_PV_THRESHOLD, default=get_val(CONF_AUTO_CHARGE_PV_THRESHOLD, DEFAULT_AUTO_CHARGE_PV_THRESHOLD)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0.0, max=50.0, step=0.5,
+                            unit_of_measurement="kWh",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+
+                vol.Optional(CONF_AUTO_CHARGE_PRICE_QUANTILE, default=get_val(CONF_AUTO_CHARGE_PRICE_QUANTILE, DEFAULT_AUTO_CHARGE_PRICE_QUANTILE)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0.0, max=1.0, step=0.05,
+                            mode=selector.NumberSelectorMode.SLIDER,
+                        )
+                    ),
+
+                vol.Optional(CONF_AUTO_CHARGE_MIN_SOC, default=get_val(CONF_AUTO_CHARGE_MIN_SOC, DEFAULT_AUTO_CHARGE_MIN_SOC)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0.0, max=100.0, step=5.0,
+                            unit_of_measurement="%",
+                            mode=selector.NumberSelectorMode.SLIDER,
+                        )
+                    ),
+
+                vol.Optional(CONF_AUTO_CHARGE_TARGET_SOC, default=get_val(CONF_AUTO_CHARGE_TARGET_SOC, DEFAULT_AUTO_CHARGE_TARGET_SOC)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0.0, max=100.0, step=5.0,
+                            unit_of_measurement="%",
+                            mode=selector.NumberSelectorMode.SLIDER,
+                        )
+                    ),
             })
         )

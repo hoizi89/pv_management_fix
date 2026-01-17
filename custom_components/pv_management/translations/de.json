@@ -83,7 +83,16 @@
           "installation_date": "Installationsdatum",
           "savings_offset": "Ersparnis-Offset",
           "energy_offset_self_consumption": "Eigenverbrauch-Offset (kWh)",
-          "energy_offset_export": "Einspeisung-Offset (kWh)"
+          "energy_offset_export": "Einspeisung-Offset (kWh)",
+          "pv_peak_power": "PV Peak-Leistung (W)",
+          "winter_base_load": "Winter-Grundlast (W)",
+          "epex_price_entity": "EPEX Spot Preis Sensor",
+          "epex_quantile_entity": "EPEX Quantile Sensor",
+          "solcast_forecast_entity": "Solcast Prognose Sensor",
+          "auto_charge_pv_threshold": "Auto-Charge: PV-Prognose Schwelle",
+          "auto_charge_price_quantile": "Auto-Charge: Preis-Quantile Schwelle",
+          "auto_charge_min_soc": "Auto-Charge: Min. Batterie-SOC",
+          "auto_charge_target_soc": "Auto-Charge: Ziel Batterie-SOC"
         },
         "data_description": {
           "pv_production_entity": "Sensor fuer PV-Produktion in kWh",
@@ -108,7 +117,16 @@
           "installation_date": "Fuer Statistiken und Prognosen",
           "savings_offset": "Bereits amortisierter Betrag aus Vorzeit",
           "energy_offset_self_consumption": "Eigenverbrauch vor diesem Tracking",
-          "energy_offset_export": "Einspeisung vor diesem Tracking"
+          "energy_offset_export": "Einspeisung vor diesem Tracking",
+          "pv_peak_power": "Peak-Leistung deiner PV-Anlage in Watt (z.B. 10000 fuer 10kWp)",
+          "winter_base_load": "Grundlast im Winter die von PV abgezogen wird (z.B. Waermepumpe)",
+          "epex_price_entity": "EPEX Spot Strompreis Sensor (fuer Empfehlung)",
+          "epex_quantile_entity": "EPEX Quantile Sensor (0=guenstigster, 1=teuerster Preis des Tages)",
+          "solcast_forecast_entity": "Solcast PV-Prognose Sensor fuer heute",
+          "auto_charge_pv_threshold": "Unter dieser PV-Prognose wird Laden empfohlen",
+          "auto_charge_price_quantile": "Unter diesem Quantile-Wert ist der Preis guenstig genug zum Laden",
+          "auto_charge_min_soc": "Nur laden wenn Batterie unter diesem SOC ist",
+          "auto_charge_target_soc": "Ziel-SOC beim automatischen Laden"
         }
       }
     }
