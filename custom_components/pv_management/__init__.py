@@ -1977,6 +1977,7 @@ class PVManagementController:
             changed = True
         elif entity_id == self.grid_import_entity:
             self._grid_import_kwh = value
+            changed = True  # Wichtig für Strompreis-Tracking!
         elif entity_id == self.consumption_entity:
             self._consumption_kwh = value
 
