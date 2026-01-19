@@ -150,8 +150,7 @@ class PVManagementOptionsFlow(config_entries.OptionsFlow):
                 "sensors": "Sensoren",
                 "prices": "Strompreise",
                 "integrations": "Integrationen (EPEX/Solcast)",
-                "auto_charge": "Auto-Charge Batterie",
-                "discharge": "Entlade-Steuerung",
+                "battery": "Batterie-Steuerung",
                 "advanced": "Erweiterte Einstellungen",
                 "save": "Speichern & Schließen",
             },
@@ -269,15 +268,21 @@ class PVManagementOptionsFlow(config_entries.OptionsFlow):
             })
         )
 
-    async def async_step_auto_charge(self, user_input=None):
-        """Auto-Charge Batterie Einstellungen."""
+    async def async_step_battery(self, user_input=None):
+        """Batterie-Steuerung: Auto-Charge und Entlade-Steuerung kombiniert."""
         if user_input is not None:
             return await self._save_and_return_to_menu(user_input)
 
         return self.async_show_form(
-            step_id="auto_charge",
+            step_id="battery",
             data_schema=vol.Schema({
-                # Basis-Einstellungen
+                # === GEMEINSAME EINSTELLUNG ===
+                vol.Optional(CONF_BATTERY_TARGET_SOC, default=self._get_val(CONF_BATTERY_TARGET_SOC, DEFAULT_BATTERY_TARGET_SOC)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(min=0.0, max=100.0, step=5.0, unit_of_measurement="%", mode=selector.NumberSelectorMode.SLIDER)
+                    ),
+
+                # === AUTO-CHARGE (Netzladen bei guenstigen Preisen) ===
                 vol.Optional(CONF_AUTO_CHARGE_WINTER_ONLY, default=self._get_val(CONF_AUTO_CHARGE_WINTER_ONLY, DEFAULT_AUTO_CHARGE_WINTER_ONLY)):
                     selector.BooleanSelector(),
 
@@ -301,50 +306,28 @@ class PVManagementOptionsFlow(config_entries.OptionsFlow):
                         selector.NumberSelectorConfig(min=0.0, max=100.0, step=5.0, unit_of_measurement="%", mode=selector.NumberSelectorMode.SLIDER)
                     ),
 
-                # Gemeinsame Einstellung: Ziel-SOC für Laden UND Halten
-                vol.Optional(CONF_BATTERY_TARGET_SOC, default=self._get_val(CONF_BATTERY_TARGET_SOC, DEFAULT_BATTERY_TARGET_SOC)):
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(min=0.0, max=100.0, step=5.0, unit_of_measurement="%", mode=selector.NumberSelectorMode.SLIDER)
-                    ),
-
                 vol.Optional(CONF_AUTO_CHARGE_POWER, default=self._get_val(CONF_AUTO_CHARGE_POWER, DEFAULT_AUTO_CHARGE_POWER)):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(min=500.0, max=10000.0, step=100.0, unit_of_measurement="W", mode=selector.NumberSelectorMode.BOX)
                     ),
-            })
-        )
 
-    async def async_step_discharge(self, user_input=None):
-        """Entlade-Steuerung Einstellungen."""
-        if user_input is not None:
-            return await self._save_and_return_to_menu(user_input)
-
-        return self.async_show_form(
-            step_id="discharge",
-            data_schema=vol.Schema({
-                # Aktivierung
+                # === ENTLADE-STEUERUNG (Batterie bei guenstigen Preisen halten) ===
                 vol.Optional(CONF_DISCHARGE_ENABLED, default=self._get_val(CONF_DISCHARGE_ENABLED, DEFAULT_DISCHARGE_ENABLED)):
                     selector.BooleanSelector(),
 
-                # Nur im Winter (Okt-März)
                 vol.Optional(CONF_DISCHARGE_WINTER_ONLY, default=self._get_val(CONF_DISCHARGE_WINTER_ONLY, DEFAULT_DISCHARGE_WINTER_ONLY)):
                     selector.BooleanSelector(),
 
-                # Preis-Quantile ab dem entladen wird (0.7 = teuerste 30% der Stunden)
                 vol.Optional(CONF_DISCHARGE_PRICE_QUANTILE, default=self._get_val(CONF_DISCHARGE_PRICE_QUANTILE, DEFAULT_DISCHARGE_PRICE_QUANTILE)):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(min=0.0, max=1.0, step=0.05, mode=selector.NumberSelectorMode.SLIDER)
                     ),
 
-                # Hinweis: Halte-SOC wird jetzt in "Auto-Charge" als "Ziel/Halte-SOC" konfiguriert
-
-                # SOC bis zu dem entladen werden darf wenn freigegeben (z.B. 20%)
                 vol.Optional(CONF_DISCHARGE_ALLOW_SOC, default=self._get_val(CONF_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_ALLOW_SOC)):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(min=0.0, max=100.0, step=5.0, unit_of_measurement="%", mode=selector.NumberSelectorMode.SLIDER)
                     ),
 
-                # SOC im Sommer (normale Entladung, z.B. 10%)
                 vol.Optional(CONF_DISCHARGE_SUMMER_SOC, default=self._get_val(CONF_DISCHARGE_SUMMER_SOC, DEFAULT_DISCHARGE_SUMMER_SOC)):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(min=0.0, max=100.0, step=5.0, unit_of_measurement="%", mode=selector.NumberSelectorMode.SLIDER)

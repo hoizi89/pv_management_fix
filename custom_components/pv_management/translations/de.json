@@ -48,8 +48,7 @@
           "sensors": "Sensoren konfigurieren",
           "prices": "Strompreise & Amortisation",
           "integrations": "Integrationen (EPEX/Solcast)",
-          "auto_charge": "Auto-Charge Batterie",
-          "discharge": "Entlade-Steuerung",
+          "battery": "Batterie-Steuerung",
           "advanced": "Erweiterte Einstellungen",
           "save": "Speichern & Schliessen"
         }
@@ -114,43 +113,35 @@
           "solcast_forecast_entity": "Solcast PV-Prognose fuer heute in kWh"
         }
       },
-      "auto_charge": {
-        "title": "Auto-Charge & Batterie-Ziel",
-        "description": "Automatisches Laden der Batterie bei guenstigen Strompreisen.\n\nDer Ziel/Halte-SOC gilt fuer BEIDE Features (Auto-Charge und Entlade-Steuerung).",
+      "battery": {
+        "title": "Batterie-Steuerung",
+        "description": "Auto-Charge (Netzladen bei guenstigen Preisen) und Entlade-Steuerung (Batterie fuer teure Stunden aufsparen).",
         "data": {
-          "auto_charge_winter_only": "Nur im Winter laden",
-          "auto_charge_pv_threshold": "PV-Prognose Schwelle",
-          "auto_charge_price_quantile": "Preis-Quantile Schwelle",
-          "auto_charge_min_price_diff": "Min. Preisdifferenz",
-          "auto_charge_min_soc": "Min. Batterie-SOC (Laden starten)",
           "battery_target_soc": "Ziel/Halte-SOC",
-          "auto_charge_power": "Ladeleistung"
-        },
-        "data_description": {
-          "auto_charge_winter_only": "Wenn aktiviert, nur von Oktober bis Maerz laden (im Sommer reicht PV)",
-          "auto_charge_pv_threshold": "Unter dieser PV-Prognose wird Laden empfohlen (schlechtes Wetter)",
-          "auto_charge_price_quantile": "0=billigste Stunde, 1=teuerste. Bei 0.2 nur laden wenn Preis in den guenstigsten 20%",
-          "auto_charge_min_price_diff": "Nur laden wenn Differenz zwischen billig/teuer mindestens so gross ist (Ladeverluste!)",
-          "auto_charge_min_soc": "Netzladen nur starten wenn Batterie UNTER diesem Wert ist",
-          "battery_target_soc": "Batterie bis zu diesem Wert laden UND bei guenstigen Preisen auf diesem Wert halten (nicht entladen)",
-          "auto_charge_power": "Mit welcher Leistung vom Netz geladen werden soll"
-        }
-      },
-      "discharge": {
-        "title": "Entlade-Steuerung",
-        "description": "Steuert wann die Batterie entladen werden darf.\n\nIdee: Batterie fuer teure Stunden aufsparen.\n\nHinweis: Der Halte-SOC wird unter 'Auto-Charge & Batterie-Ziel' eingestellt.",
-        "data": {
+          "auto_charge_winter_only": "Auto-Charge: Nur im Winter",
+          "auto_charge_pv_threshold": "Auto-Charge: PV-Schwelle",
+          "auto_charge_price_quantile": "Auto-Charge: Preis-Quantile",
+          "auto_charge_min_price_diff": "Auto-Charge: Min. Preisdifferenz",
+          "auto_charge_min_soc": "Auto-Charge: Min. SOC (Start)",
+          "auto_charge_power": "Auto-Charge: Ladeleistung",
           "discharge_enabled": "Entlade-Steuerung aktivieren",
-          "discharge_winter_only": "Nur im Winter aktiv",
-          "discharge_price_quantile": "Preis-Quantile Schwelle",
-          "discharge_allow_soc": "Entlade-SOC (teurer Strom)",
-          "discharge_summer_soc": "Sommer-SOC"
+          "discharge_winter_only": "Entladen: Nur im Winter",
+          "discharge_price_quantile": "Entladen: Preis-Quantile",
+          "discharge_allow_soc": "Entladen: Min. SOC (teuer)",
+          "discharge_summer_soc": "Entladen: Sommer-SOC"
         },
         "data_description": {
-          "discharge_enabled": "Aktiviert die Entlade-Steuerung (Binary Sensor)",
-          "discharge_winter_only": "Wenn aktiviert, nur von Oktober bis Maerz aktiv. Im Sommer normale Entladung.",
-          "discharge_price_quantile": "0=billigste, 1=teuerste. Bei 0.7 nur entladen wenn Preis in den teuersten 30%",
-          "discharge_allow_soc": "Batterie kann bis zu diesem Wert entladen werden wenn Strom teuer ist",
+          "battery_target_soc": "Batterie bis hierhin laden UND bei guenstigen Preisen auf diesem Wert halten",
+          "auto_charge_winter_only": "Nur von Oktober bis Maerz laden (im Sommer reicht PV)",
+          "auto_charge_pv_threshold": "Unter dieser PV-Prognose wird Laden empfohlen",
+          "auto_charge_price_quantile": "0=billigste, 1=teuerste. Bei 0.2 nur in guenstigsten 20% laden",
+          "auto_charge_min_price_diff": "Min. Differenz billig/teuer in ct/kWh (Ladeverluste!)",
+          "auto_charge_min_soc": "Netzladen nur starten wenn Batterie UNTER diesem Wert",
+          "auto_charge_power": "Ladeleistung vom Netz in Watt",
+          "discharge_enabled": "Aktiviert die Entlade-Steuerung",
+          "discharge_winter_only": "Nur von Oktober bis Maerz aktiv",
+          "discharge_price_quantile": "0=billigste, 1=teuerste. Bei 0.7 nur in teuersten 30% entladen",
+          "discharge_allow_soc": "Batterie kann bis hierhin entladen werden wenn Strom teuer",
           "discharge_summer_soc": "Normale Entladung im Sommer (April-September)"
         }
       },
