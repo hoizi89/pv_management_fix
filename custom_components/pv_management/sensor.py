@@ -1653,7 +1653,7 @@ class AutoChargeConditionsSensor(BaseEntity):
             "winter": "✓ Winter" if winter_ok else "✗ Sommer",
             "pv_prognose": "✓ Niedrig" if pv_ok else "✗ Hoch",
             "preis": "✓ Günstig" if price_ok else "✗ Teuer",
-            "batterie_soc": "✓ Niedrig" if soc_ok else "✗ Voll",
+            "batterie_soc": "✓ Niedrig" if soc_ok else "✗ Ausreichend",
             "preisdifferenz": "✓ Groß" if diff_ok else "✗ Klein",
             "alle_erfuellt": self.ctrl.should_auto_charge,
         }

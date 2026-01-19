@@ -17,10 +17,11 @@ from .const import (
     CONF_PV_PEAK_POWER, CONF_WINTER_BASE_LOAD, CONF_SAVINGS_OFFSET,
     CONF_EPEX_PRICE_ENTITY, CONF_EPEX_QUANTILE_ENTITY, CONF_SOLCAST_FORECAST_ENTITY,
     CONF_AUTO_CHARGE_WINTER_ONLY, CONF_AUTO_CHARGE_PV_THRESHOLD, CONF_AUTO_CHARGE_PRICE_QUANTILE,
-    CONF_AUTO_CHARGE_MIN_SOC, CONF_AUTO_CHARGE_TARGET_SOC, CONF_AUTO_CHARGE_MIN_PRICE_DIFF,
+    CONF_AUTO_CHARGE_MIN_SOC, CONF_AUTO_CHARGE_MIN_PRICE_DIFF,
     CONF_AUTO_CHARGE_POWER,
+    CONF_BATTERY_TARGET_SOC,  # Gemeinsame Einstellung für Ziel/Halte-SOC
     CONF_DISCHARGE_ENABLED, CONF_DISCHARGE_WINTER_ONLY, CONF_DISCHARGE_PRICE_QUANTILE,
-    CONF_DISCHARGE_HOLD_SOC, CONF_DISCHARGE_ALLOW_SOC, CONF_DISCHARGE_SUMMER_SOC,
+    CONF_DISCHARGE_ALLOW_SOC, CONF_DISCHARGE_SUMMER_SOC,
     DEFAULT_NAME, DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
@@ -28,10 +29,11 @@ from .const import (
     DEFAULT_PRICE_HIGH_THRESHOLD, DEFAULT_PRICE_LOW_THRESHOLD, DEFAULT_PV_POWER_HIGH,
     DEFAULT_PV_PEAK_POWER, DEFAULT_WINTER_BASE_LOAD,
     DEFAULT_AUTO_CHARGE_WINTER_ONLY, DEFAULT_AUTO_CHARGE_PV_THRESHOLD, DEFAULT_AUTO_CHARGE_PRICE_QUANTILE,
-    DEFAULT_AUTO_CHARGE_MIN_SOC, DEFAULT_AUTO_CHARGE_TARGET_SOC, DEFAULT_AUTO_CHARGE_MIN_PRICE_DIFF,
+    DEFAULT_AUTO_CHARGE_MIN_SOC, DEFAULT_AUTO_CHARGE_MIN_PRICE_DIFF,
     DEFAULT_AUTO_CHARGE_POWER,
+    DEFAULT_BATTERY_TARGET_SOC,  # Gemeinsamer Default
     DEFAULT_DISCHARGE_ENABLED, DEFAULT_DISCHARGE_WINTER_ONLY, DEFAULT_DISCHARGE_PRICE_QUANTILE,
-    DEFAULT_DISCHARGE_HOLD_SOC, DEFAULT_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_SUMMER_SOC,
+    DEFAULT_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_SUMMER_SOC,
     RANGE_COST, RANGE_OFFSET, RANGE_BATTERY_SOC, RANGE_PV_POWER,
     PRICE_UNIT_EUR, PRICE_UNIT_CENT,
 )
@@ -299,7 +301,8 @@ class PVManagementOptionsFlow(config_entries.OptionsFlow):
                         selector.NumberSelectorConfig(min=0.0, max=100.0, step=5.0, unit_of_measurement="%", mode=selector.NumberSelectorMode.SLIDER)
                     ),
 
-                vol.Optional(CONF_AUTO_CHARGE_TARGET_SOC, default=self._get_val(CONF_AUTO_CHARGE_TARGET_SOC, DEFAULT_AUTO_CHARGE_TARGET_SOC)):
+                # Gemeinsame Einstellung: Ziel-SOC für Laden UND Halten
+                vol.Optional(CONF_BATTERY_TARGET_SOC, default=self._get_val(CONF_BATTERY_TARGET_SOC, DEFAULT_BATTERY_TARGET_SOC)):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(min=0.0, max=100.0, step=5.0, unit_of_measurement="%", mode=selector.NumberSelectorMode.SLIDER)
                     ),
@@ -333,11 +336,7 @@ class PVManagementOptionsFlow(config_entries.OptionsFlow):
                         selector.NumberSelectorConfig(min=0.0, max=1.0, step=0.05, mode=selector.NumberSelectorMode.SLIDER)
                     ),
 
-                # SOC auf dem gehalten wird wenn NICHT entladen (z.B. 80%)
-                vol.Optional(CONF_DISCHARGE_HOLD_SOC, default=self._get_val(CONF_DISCHARGE_HOLD_SOC, DEFAULT_DISCHARGE_HOLD_SOC)):
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(min=0.0, max=100.0, step=5.0, unit_of_measurement="%", mode=selector.NumberSelectorMode.SLIDER)
-                    ),
+                # Hinweis: Halte-SOC wird jetzt in "Auto-Charge" als "Ziel/Halte-SOC" konfiguriert
 
                 # SOC bis zu dem entladen werden darf wenn freigegeben (z.B. 20%)
                 vol.Optional(CONF_DISCHARGE_ALLOW_SOC, default=self._get_val(CONF_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_ALLOW_SOC)):

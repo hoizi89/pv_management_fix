@@ -65,9 +65,12 @@ CONF_AUTO_CHARGE_WINTER_ONLY: Final[str] = "auto_charge_winter_only"
 CONF_AUTO_CHARGE_PV_THRESHOLD: Final[str] = "auto_charge_pv_threshold"
 CONF_AUTO_CHARGE_PRICE_QUANTILE: Final[str] = "auto_charge_price_quantile"
 CONF_AUTO_CHARGE_MIN_SOC: Final[str] = "auto_charge_min_soc"
-CONF_AUTO_CHARGE_TARGET_SOC: Final[str] = "auto_charge_target_soc"
+# REMOVED: CONF_AUTO_CHARGE_TARGET_SOC - now uses CONF_BATTERY_TARGET_SOC
 CONF_AUTO_CHARGE_MIN_PRICE_DIFF: Final[str] = "auto_charge_min_price_diff"
 CONF_AUTO_CHARGE_POWER: Final[str] = "auto_charge_power"
+
+# --- Gemeinsame Batterie-Einstellung (für Auto-Charge UND Entlade-Steuerung) --
+CONF_BATTERY_TARGET_SOC: Final[str] = "battery_target_soc"  # Ziel-SOC / Halte-SOC
 
 # --- Defaults -----------------------------------------------------------------
 DEFAULT_NAME: Final[str] = "PV Management"
@@ -95,15 +98,17 @@ DEFAULT_AUTO_CHARGE_WINTER_ONLY: Final[bool] = True  # Nur im Winter laden (Okt-
 DEFAULT_AUTO_CHARGE_PV_THRESHOLD: Final[float] = 5.0  # kWh - unter dieser Prognose wird geladen
 DEFAULT_AUTO_CHARGE_PRICE_QUANTILE: Final[float] = 0.3  # 0-1, unter diesem Wert ist "günstig"
 DEFAULT_AUTO_CHARGE_MIN_SOC: Final[float] = 30.0  # % - nur laden wenn SOC unter diesem Wert
-DEFAULT_AUTO_CHARGE_TARGET_SOC: Final[float] = 80.0  # % - Ziel-SOC beim Laden
 DEFAULT_AUTO_CHARGE_MIN_PRICE_DIFF: Final[float] = 15.0  # ct/kWh - min. Differenz (Ladeverlust + Batterie/WR-Verschleiß)
 DEFAULT_AUTO_CHARGE_POWER: Final[float] = 3000.0  # W - Ladeleistung beim Auto-Charge
+
+# Gemeinsamer Default für Ziel/Halte-SOC
+DEFAULT_BATTERY_TARGET_SOC: Final[float] = 100.0  # % - Ziel-SOC für Laden UND Halten
 
 # --- Discharge Control (Entlade-Steuerung) ------------------------------------
 CONF_DISCHARGE_ENABLED: Final[str] = "discharge_enabled"
 CONF_DISCHARGE_WINTER_ONLY: Final[str] = "discharge_winter_only"
 CONF_DISCHARGE_PRICE_QUANTILE: Final[str] = "discharge_price_quantile"
-CONF_DISCHARGE_HOLD_SOC: Final[str] = "discharge_hold_soc"
+# REMOVED: CONF_DISCHARGE_HOLD_SOC - now uses CONF_BATTERY_TARGET_SOC
 CONF_DISCHARGE_ALLOW_SOC: Final[str] = "discharge_allow_soc"
 CONF_DISCHARGE_SUMMER_SOC: Final[str] = "discharge_summer_soc"
 
@@ -111,7 +116,7 @@ CONF_DISCHARGE_SUMMER_SOC: Final[str] = "discharge_summer_soc"
 DEFAULT_DISCHARGE_ENABLED: Final[bool] = False
 DEFAULT_DISCHARGE_WINTER_ONLY: Final[bool] = True  # Nur im Winter aktiv (Okt-März)
 DEFAULT_DISCHARGE_PRICE_QUANTILE: Final[float] = 0.7  # 0-1, über diesem Wert ist "teuer" → entladen
-DEFAULT_DISCHARGE_HOLD_SOC: Final[float] = 80.0  # % - Batterie halten über diesem Wert
+# REMOVED: DEFAULT_DISCHARGE_HOLD_SOC - now uses DEFAULT_BATTERY_TARGET_SOC
 DEFAULT_DISCHARGE_ALLOW_SOC: Final[float] = 20.0  # % - Batterie kann bis hierhin entladen werden
 DEFAULT_DISCHARGE_SUMMER_SOC: Final[float] = 10.0  # % - Im Sommer normale Entladung (10%)
 
