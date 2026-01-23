@@ -28,6 +28,7 @@ from .const import (
     CONF_BATTERY_TARGET_SOC,  # Gemeinsame Einstellung für Ziel/Halte-SOC
     CONF_DISCHARGE_ENABLED, CONF_DISCHARGE_WINTER_ONLY, CONF_DISCHARGE_PRICE_QUANTILE,
     CONF_DISCHARGE_ALLOW_SOC, CONF_DISCHARGE_SUMMER_SOC,
+    CONF_FIXED_PRICE_COMPARE,  # NEU: Fixpreis-Vergleich
     DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
@@ -40,6 +41,7 @@ from .const import (
     DEFAULT_BATTERY_TARGET_SOC,  # Gemeinsamer Default
     DEFAULT_DISCHARGE_ENABLED, DEFAULT_DISCHARGE_WINTER_ONLY, DEFAULT_DISCHARGE_PRICE_QUANTILE,
     DEFAULT_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_SUMMER_SOC,
+    DEFAULT_FIXED_PRICE_COMPARE,  # NEU
     PRICE_UNIT_CENT,
     RECOMMENDATION_DARK_GREEN, RECOMMENDATION_GREEN, RECOMMENDATION_YELLOW, RECOMMENDATION_ORANGE, RECOMMENDATION_RED,
 )
@@ -205,6 +207,9 @@ class PVManagementController:
         self.discharge_price_quantile = opts.get(CONF_DISCHARGE_PRICE_QUANTILE, DEFAULT_DISCHARGE_PRICE_QUANTILE)
         self.discharge_allow_soc = opts.get(CONF_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_ALLOW_SOC)
         self.discharge_summer_soc = opts.get(CONF_DISCHARGE_SUMMER_SOC, DEFAULT_DISCHARGE_SUMMER_SOC)
+
+        # Fixpreis-Vergleich (ct/kWh → €/kWh)
+        self.fixed_price_compare = opts.get(CONF_FIXED_PRICE_COMPARE, DEFAULT_FIXED_PRICE_COMPARE) / 100.0
 
         # Aliase für Rückwärtskompatibilität
         self.auto_charge_target_soc = self.battery_target_soc
@@ -1079,27 +1084,33 @@ class PVManagementController:
     @property
     def spot_vs_fixed_savings(self) -> float | None:
         """
-        Ersparnis gegenüber Fixpreis (Energie AG 14,90 ct/kWh).
+        Ersparnis gegenüber konfiguriertem Fixpreis.
         Positiv = Spot günstiger, Negativ = Fixpreis günstiger.
         """
         avg = self.average_electricity_price
         if avg is None:
             return None
-        # Vergleich mit Energie AG Tarif (14,90 ct/kWh = 0.149 €/kWh)
-        fixed_price = 0.149
-        diff_per_kwh = fixed_price - avg
+        # Vergleich mit konfiguriertem Fixpreis (aus Options)
+        diff_per_kwh = self.fixed_price_compare - avg
         return diff_per_kwh * self._tracked_grid_import_kwh
+
+    @property
+    def fixed_price_compare_ct(self) -> float:
+        """Konfigurierter Fixpreis in ct/kWh."""
+        return self.fixed_price_compare * 100
 
     @property
     def spot_vs_fixed_savings_treuebonus(self) -> float | None:
         """
-        Ersparnis gegenüber Fixpreis mit Treuebonus (13,68 ct/kWh).
+        Ersparnis gegenüber Fixpreis mit Treuebonus (1ct günstiger als konfigurierter Preis).
+        DEPRECATED: Verwende spot_vs_fixed_savings mit angepasstem fixed_price_compare.
         """
         avg = self.average_electricity_price
         if avg is None:
             return None
-        fixed_price = 0.1368
-        diff_per_kwh = fixed_price - avg
+        # Treuebonus = konfigurierter Preis - 1ct
+        fixed_price_treuebonus = self.fixed_price_compare - 0.01
+        diff_per_kwh = fixed_price_treuebonus - avg
         return diff_per_kwh * self._tracked_grid_import_kwh
 
     @property
@@ -1657,6 +1668,47 @@ class PVManagementController:
         self._tracked_grid_import_kwh = safe_float(data.get("tracked_grid_import_kwh"))
         self._total_grid_import_cost = safe_float(data.get("total_grid_import_cost"))
 
+        # Daily/Monthly Tracking wiederherstellen (NEU - Fix für Persistierung)
+        today = date.today()
+
+        # Daily: Prüfen ob gleicher Tag
+        daily_reset_str = data.get("daily_reset_date")
+        if daily_reset_str:
+            try:
+                daily_reset_date = date.fromisoformat(daily_reset_str)
+                if daily_reset_date == today:
+                    # Gleicher Tag - Werte wiederherstellen
+                    self._daily_grid_import_kwh = safe_float(data.get("daily_grid_import_kwh"))
+                    self._daily_grid_import_cost = safe_float(data.get("daily_grid_import_cost"))
+                    _LOGGER.info(
+                        "Daily Strompreis-Tracking wiederhergestellt: %.2f kWh, %.2f €",
+                        self._daily_grid_import_kwh, self._daily_grid_import_cost
+                    )
+                else:
+                    # Neuer Tag - bei 0 starten
+                    _LOGGER.info("Neuer Tag seit letztem Speichern, Daily-Werte zurückgesetzt")
+            except (ValueError, TypeError) as e:
+                _LOGGER.warning("Konnte daily_reset_date nicht parsen: %s", e)
+
+        # Monthly: Prüfen ob gleicher Monat
+        monthly_reset_month = data.get("monthly_reset_month")
+        monthly_reset_year = data.get("monthly_reset_year")
+        if monthly_reset_month is not None and monthly_reset_year is not None:
+            try:
+                if int(monthly_reset_month) == today.month and int(monthly_reset_year) == today.year:
+                    # Gleicher Monat - Werte wiederherstellen
+                    self._monthly_grid_import_kwh = safe_float(data.get("monthly_grid_import_kwh"))
+                    self._monthly_grid_import_cost = safe_float(data.get("monthly_grid_import_cost"))
+                    _LOGGER.info(
+                        "Monthly Strompreis-Tracking wiederhergestellt: %.2f kWh, %.2f €",
+                        self._monthly_grid_import_kwh, self._monthly_grid_import_cost
+                    )
+                else:
+                    # Neuer Monat - bei 0 starten
+                    _LOGGER.info("Neuer Monat seit letztem Speichern, Monthly-Werte zurückgesetzt")
+            except (ValueError, TypeError) as e:
+                _LOGGER.warning("Konnte monthly_reset Daten nicht parsen: %s", e)
+
         # Auto-Charge Statistiken wiederherstellen
         self._auto_charge_count = int(safe_float(data.get("auto_charge_count")))
         self._auto_charge_total_hours = safe_float(data.get("auto_charge_total_hours"))
@@ -1784,6 +1836,7 @@ class PVManagementController:
 
     def get_state_for_storage(self) -> dict[str, Any]:
         """Gibt den zu speichernden Zustand zurück."""
+        today = date.today()
         return {
             "total_self_consumption_kwh": self._total_self_consumption_kwh,
             "total_feed_in_kwh": self._total_feed_in_kwh,
@@ -1793,6 +1846,14 @@ class PVManagementController:
             # Strompreis-Tracking
             "tracked_grid_import_kwh": self._tracked_grid_import_kwh,
             "total_grid_import_cost": self._total_grid_import_cost,
+            # Daily/Monthly Tracking (NEU - Fix für Persistierung)
+            "daily_grid_import_kwh": self._daily_grid_import_kwh,
+            "daily_grid_import_cost": self._daily_grid_import_cost,
+            "daily_reset_date": today.isoformat(),
+            "monthly_grid_import_kwh": self._monthly_grid_import_kwh,
+            "monthly_grid_import_cost": self._monthly_grid_import_cost,
+            "monthly_reset_month": today.month,
+            "monthly_reset_year": today.year,
             # Auto-Charge Statistiken
             "auto_charge_count": self._auto_charge_count,
             "auto_charge_total_hours": self._auto_charge_total_hours,

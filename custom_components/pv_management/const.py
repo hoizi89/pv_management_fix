@@ -104,6 +104,9 @@ DEFAULT_AUTO_CHARGE_POWER: Final[float] = 3000.0  # W - Ladeleistung beim Auto-C
 # Gemeinsamer Default für Ziel/Halte-SOC
 DEFAULT_BATTERY_TARGET_SOC: Final[float] = 100.0  # % - Ziel-SOC für Laden UND Halten
 
+# --- Fixpreis-Vergleich -------------------------------------------------------
+CONF_FIXED_PRICE_COMPARE: Final[str] = "fixed_price_compare"  # Fixpreis zum Vergleich (ct/kWh)
+
 # --- Discharge Control (Entlade-Steuerung) ------------------------------------
 CONF_DISCHARGE_ENABLED: Final[str] = "discharge_enabled"
 CONF_DISCHARGE_WINTER_ONLY: Final[str] = "discharge_winter_only"
@@ -111,6 +114,9 @@ CONF_DISCHARGE_PRICE_QUANTILE: Final[str] = "discharge_price_quantile"
 # REMOVED: CONF_DISCHARGE_HOLD_SOC - now uses CONF_BATTERY_TARGET_SOC
 CONF_DISCHARGE_ALLOW_SOC: Final[str] = "discharge_allow_soc"
 CONF_DISCHARGE_SUMMER_SOC: Final[str] = "discharge_summer_soc"
+
+# Fixpreis-Vergleich Default (Energie AG Angebot)
+DEFAULT_FIXED_PRICE_COMPARE: Final[float] = 13.9  # ct/kWh
 
 # Discharge Defaults
 DEFAULT_DISCHARGE_ENABLED: Final[bool] = False

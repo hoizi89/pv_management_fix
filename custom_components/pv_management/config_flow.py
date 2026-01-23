@@ -22,6 +22,7 @@ from .const import (
     CONF_BATTERY_TARGET_SOC,  # Gemeinsame Einstellung für Ziel/Halte-SOC
     CONF_DISCHARGE_WINTER_ONLY, CONF_DISCHARGE_PRICE_QUANTILE,
     CONF_DISCHARGE_ALLOW_SOC, CONF_DISCHARGE_SUMMER_SOC,
+    CONF_FIXED_PRICE_COMPARE,  # NEU: Fixpreis-Vergleich
     DEFAULT_NAME, DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
@@ -34,6 +35,7 @@ from .const import (
     DEFAULT_BATTERY_TARGET_SOC,  # Gemeinsamer Default
     DEFAULT_DISCHARGE_WINTER_ONLY, DEFAULT_DISCHARGE_PRICE_QUANTILE,
     DEFAULT_DISCHARGE_ALLOW_SOC, DEFAULT_DISCHARGE_SUMMER_SOC,
+    DEFAULT_FIXED_PRICE_COMPARE,  # NEU
     RANGE_COST, RANGE_OFFSET, RANGE_BATTERY_SOC, RANGE_PV_POWER,
     PRICE_UNIT_EUR, PRICE_UNIT_CENT,
 )
@@ -234,6 +236,15 @@ class PVManagementOptionsFlow(config_entries.OptionsFlow):
                     ),
                 vol.Optional(CONF_FEED_IN_TARIFF_ENTITY, default=self._get_val(CONF_FEED_IN_TARIFF_ENTITY)):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+
+                # Fixpreis-Vergleich (für Spot vs. Fixpreis Berechnung)
+                vol.Optional(CONF_FIXED_PRICE_COMPARE, default=self._get_val(CONF_FIXED_PRICE_COMPARE, DEFAULT_FIXED_PRICE_COMPARE)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=5.0, max=50.0, step=0.1,
+                            unit_of_measurement="ct/kWh", mode=selector.NumberSelectorMode.BOX
+                        )
+                    ),
 
                 # Amortisation
                 vol.Required(CONF_INSTALLATION_COST, default=self._get_val(CONF_INSTALLATION_COST, DEFAULT_INSTALLATION_COST)):

@@ -95,7 +95,8 @@
           "auto_charge_min_soc": "Auto-Charge: Min Battery SOC",
           "auto_charge_target_soc": "Auto-Charge: Target Battery SOC",
           "auto_charge_min_price_diff": "Auto-Charge: Min Price Difference",
-          "auto_charge_power": "Auto-Charge: Charge Power"
+          "auto_charge_power": "Auto-Charge: Charge Power",
+          "fixed_price_compare": "Fixed Price Comparison (ct/kWh)"
         },
         "data_description": {
           "pv_production_entity": "Sensor fuer PV-Produktion in kWh",
@@ -132,7 +133,8 @@
           "auto_charge_min_soc": "Only charge if battery is below this SOC",
           "auto_charge_target_soc": "Target SOC when auto-charging",
           "auto_charge_min_price_diff": "Only charge if difference between cheapest and most expensive price is at least this",
-          "auto_charge_power": "Charge power for auto-charge"
+          "auto_charge_power": "Charge power for auto-charge",
+          "fixed_price_compare": "Fixed price to compare against (e.g. Energie AG offer). Shows savings vs spot tariff."
         }
       }
     }
