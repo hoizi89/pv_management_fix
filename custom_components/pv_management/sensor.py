@@ -109,6 +109,7 @@ async def async_setup_entry(
         MonthlyAverageElectricityPriceSensor(ctrl, name),
         AverageElectricityPriceSensor(ctrl, name),
         TotalGridImportCostSensor(ctrl, name),
+        SpotVsFixedPriceSensor(ctrl, name),  # NEU: Vergleich Spot vs. Fixpreis
 
         # === AUTO-CHARGE BATTERIE ===
         AutoChargeReasonSensor(ctrl, name),
@@ -1492,6 +1493,76 @@ class TotalGridImportCostSensor(BaseEntity):
             "verbrauch_kwh": round(self.ctrl.tracked_grid_import_kwh, 2),
             "durchschnittspreis_ct": f"{avg:.2f}" if avg else None,
         }
+
+
+class SpotVsFixedPriceSensor(BaseEntity):
+    """
+    Vergleich Spot-Tarif vs. konfiguriertem Fixpreis.
+
+    Zeigt die Ersparnis/Mehrkosten in Euro:
+    - Positiv = Spot war günstiger als Fixpreis
+    - Negativ = Fixpreis wäre günstiger gewesen
+    """
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Spot vs Fixpreis",
+            unit="€",
+            icon="mdi:scale-balance",
+            state_class=SensorStateClass.MEASUREMENT,
+            device_class=SensorDeviceClass.MONETARY,
+            device_type=DEVICE_PRICES,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        savings = self.ctrl.spot_vs_fixed_savings
+        if savings is None:
+            return None
+        return round(savings, 2)
+
+    @property
+    def icon(self) -> str:
+        savings = self.ctrl.spot_vs_fixed_savings
+        if savings is None:
+            return "mdi:scale-balance"
+        elif savings > 0:
+            return "mdi:thumb-up"  # Spot war günstiger
+        elif savings < 0:
+            return "mdi:thumb-down"  # Fixpreis wäre günstiger
+        return "mdi:scale-balance"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        avg = self.ctrl.average_electricity_price_ct
+        fixed = self.ctrl.fixed_price_compare_ct
+        savings = self.ctrl.spot_vs_fixed_savings
+        kwh = self.ctrl.tracked_grid_import_kwh
+
+        attrs = {
+            "fixpreis_ct": round(fixed, 2),
+            "spot_durchschnitt_ct": round(avg, 2) if avg else None,
+            "verbrauch_kwh": round(kwh, 2),
+        }
+
+        if avg and fixed and kwh > 0:
+            # Was hätte Fixpreis gekostet?
+            fixed_cost = kwh * (fixed / 100)
+            spot_cost = self.ctrl.total_grid_import_cost
+            attrs["fixpreis_kosten_eur"] = round(fixed_cost, 2)
+            attrs["spot_kosten_eur"] = round(spot_cost, 2)
+            attrs["differenz_pro_kwh_ct"] = round(fixed - avg, 2) if avg else None
+
+            if savings and savings > 0:
+                attrs["fazit"] = f"Spot {abs(savings):.2f}€ günstiger"
+            elif savings and savings < 0:
+                attrs["fazit"] = f"Fixpreis wäre {abs(savings):.2f}€ günstiger"
+            else:
+                attrs["fazit"] = "Etwa gleich"
+
+        return attrs
 
 
 # =============================================================================
