@@ -1,0 +1,118 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "PV Management Fixpreis einrichten",
+        "description": "Vereinfachte PV-Verwaltung für Fixpreis-Tarife. Berechnet Amortisation und vergleicht optional mit Spot-Preisen.",
+        "data": {
+          "name": "Name",
+          "pv_production_entity": "PV Produktion Sensor (kWh)",
+          "grid_export_entity": "Netzeinspeisung Sensor (kWh, optional)",
+          "grid_import_entity": "Netzbezug Sensor (kWh, optional)",
+          "consumption_entity": "Hausverbrauch Sensor (kWh, optional)",
+          "fixed_price": "Fixpreis (ct/kWh)",
+          "feed_in_tariff_unit": "Einspeisevergütung-Einheit",
+          "feed_in_tariff": "Einspeisevergütung",
+          "installation_cost": "Anschaffungskosten",
+          "installation_date": "Installationsdatum (optional)"
+        },
+        "data_description": {
+          "name": "Name für diese PV-Anlage",
+          "pv_production_entity": "Sensor der die gesamte PV-Produktion in kWh misst",
+          "grid_export_entity": "Sensor für Netzeinspeisung in kWh (für Einnahmenberechnung)",
+          "grid_import_entity": "Sensor für Netzbezug in kWh (für Spot-Vergleich)",
+          "consumption_entity": "Sensor für Gesamtverbrauch des Haushalts in kWh",
+          "fixed_price": "Dein Strompreis vom Anbieter (z.B. 10.92 ct/kWh für Grünwelt classic)",
+          "feed_in_tariff_unit": "Wähle ob die Einspeisevergütung in Euro oder Cent pro kWh angegeben wird",
+          "feed_in_tariff": "Einspeisevergütung vom Netzbetreiber",
+          "installation_cost": "Gesamtkosten der PV-Anlage inklusive Installation",
+          "installation_date": "Datum der Installation für genaue Statistiken"
+        }
+      }
+    },
+    "error": {
+      "unknown": "Ein unbekannter Fehler ist aufgetreten"
+    },
+    "abort": {
+      "already_configured": "Diese PV-Anlage wurde bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "PV Management Fixpreis Einstellungen",
+        "description": "Wähle eine Kategorie zum Anpassen.",
+        "menu_options": {
+          "sensors": "Sensoren",
+          "prices": "Strompreise & Amortisation",
+          "offsets": "Historische Daten",
+          "save": "Speichern & Schließen"
+        }
+      },
+      "sensors": {
+        "title": "Energie-Sensoren",
+        "description": "Konfiguriere die Sensoren für Energie-Tracking und Spot-Vergleich.",
+        "data": {
+          "pv_production_entity": "PV Produktion Sensor (kWh)",
+          "grid_export_entity": "Netzeinspeisung Sensor (kWh)",
+          "grid_import_entity": "Netzbezug Sensor (kWh)",
+          "consumption_entity": "Hausverbrauch Sensor (kWh)",
+          "epex_price_entity": "EPEX Spot Preis Sensor (optional)"
+        },
+        "data_description": {
+          "pv_production_entity": "Gesamt-kWh Zähler der PV-Anlage",
+          "grid_export_entity": "Gesamt-kWh Zähler Netzeinspeisung",
+          "grid_import_entity": "Gesamt-kWh Zähler Netzbezug",
+          "consumption_entity": "Gesamt-kWh Zähler Hausverbrauch",
+          "epex_price_entity": "Optional: Für Vergleich Fixpreis vs. Spot-Tarif (aWATTar, smartENERGY, etc.)"
+        }
+      },
+      "prices": {
+        "title": "Strompreise & Amortisation",
+        "description": "Konfiguriere deinen Fixpreis und die Einspeisevergütung.",
+        "data": {
+          "fixed_price": "Fixpreis (ct/kWh)",
+          "feed_in_tariff_unit": "Einspeisevergütung-Einheit",
+          "feed_in_tariff": "Einspeisevergütung",
+          "feed_in_tariff_entity": "Dynamische Einspeisevergütung Sensor",
+          "installation_cost": "Anschaffungskosten",
+          "installation_date": "Installationsdatum"
+        },
+        "data_description": {
+          "fixed_price": "Dein Strompreis vom Anbieter (brutto, inkl. MwSt)",
+          "feed_in_tariff_unit": "Euro oder Cent pro kWh",
+          "feed_in_tariff": "Einspeisevergütung vom Netzbetreiber",
+          "feed_in_tariff_entity": "Optional: Sensor für dynamische Vergütung",
+          "installation_cost": "Gesamtkosten der PV-Anlage (für Amortisationsrechnung)",
+          "installation_date": "Für Statistiken und Prognosen"
+        }
+      },
+      "offsets": {
+        "title": "Historische Daten",
+        "description": "Falls du bereits vor dem Tracking Daten hast.",
+        "data": {
+          "savings_offset": "Bereits amortisierter Betrag",
+          "energy_offset_self_consumption": "Eigenverbrauch vor Tracking (kWh)",
+          "energy_offset_export": "Einspeisung vor Tracking (kWh)"
+        },
+        "data_description": {
+          "savings_offset": "Falls du bereits einen Betrag amortisiert hast (z.B. aus vorherigem Tracking)",
+          "energy_offset_self_consumption": "Eigenverbrauch-kWh die vor diesem Tracking angefallen sind",
+          "energy_offset_export": "Einspeise-kWh die vor diesem Tracking angefallen sind"
+        }
+      },
+      "save": {
+        "title": "Speichern",
+        "description": "Alle Änderungen werden gespeichert."
+      }
+    }
+  },
+  "selector": {
+    "feed_in_tariff_unit": {
+      "options": {
+        "eur": "Euro pro kWh",
+        "cent": "Cent pro kWh"
+      }
+    }
+  }
+}

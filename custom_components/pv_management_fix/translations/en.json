@@ -1,0 +1,118 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Setup PV Management Fixed Price",
+        "description": "Simplified PV management for fixed-price tariffs. Calculates amortization and optionally compares with spot prices.",
+        "data": {
+          "name": "Name",
+          "pv_production_entity": "PV Production Sensor (kWh)",
+          "grid_export_entity": "Grid Export Sensor (kWh, optional)",
+          "grid_import_entity": "Grid Import Sensor (kWh, optional)",
+          "consumption_entity": "Consumption Sensor (kWh, optional)",
+          "fixed_price": "Fixed Price (ct/kWh)",
+          "feed_in_tariff_unit": "Feed-in Tariff Unit",
+          "feed_in_tariff": "Feed-in Tariff",
+          "installation_cost": "Installation Cost",
+          "installation_date": "Installation Date (optional)"
+        },
+        "data_description": {
+          "name": "Name for this PV system",
+          "pv_production_entity": "Sensor measuring total PV production in kWh",
+          "grid_export_entity": "Sensor for grid export in kWh (for earnings calculation)",
+          "grid_import_entity": "Sensor for grid import in kWh (for spot comparison)",
+          "consumption_entity": "Sensor for total household consumption in kWh",
+          "fixed_price": "Your electricity price from provider (e.g., 10.92 ct/kWh)",
+          "feed_in_tariff_unit": "Choose if feed-in tariff is in Euro or Cent per kWh",
+          "feed_in_tariff": "Feed-in tariff from grid operator",
+          "installation_cost": "Total cost of PV system including installation",
+          "installation_date": "Date of installation for accurate statistics"
+        }
+      }
+    },
+    "error": {
+      "unknown": "An unknown error occurred"
+    },
+    "abort": {
+      "already_configured": "This PV system has already been configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "PV Management Fixed Price Settings",
+        "description": "Choose a category to configure.",
+        "menu_options": {
+          "sensors": "Sensors",
+          "prices": "Electricity Prices & Amortization",
+          "offsets": "Historical Data",
+          "save": "Save & Close"
+        }
+      },
+      "sensors": {
+        "title": "Energy Sensors",
+        "description": "Configure sensors for energy tracking and spot comparison.",
+        "data": {
+          "pv_production_entity": "PV Production Sensor (kWh)",
+          "grid_export_entity": "Grid Export Sensor (kWh)",
+          "grid_import_entity": "Grid Import Sensor (kWh)",
+          "consumption_entity": "Consumption Sensor (kWh)",
+          "epex_price_entity": "EPEX Spot Price Sensor (optional)"
+        },
+        "data_description": {
+          "pv_production_entity": "Total kWh counter of PV system",
+          "grid_export_entity": "Total kWh counter for grid export",
+          "grid_import_entity": "Total kWh counter for grid import",
+          "consumption_entity": "Total kWh counter for household consumption",
+          "epex_price_entity": "Optional: For comparing fixed price vs. spot tariff (aWATTar, smartENERGY, etc.)"
+        }
+      },
+      "prices": {
+        "title": "Electricity Prices & Amortization",
+        "description": "Configure your fixed price and feed-in tariff.",
+        "data": {
+          "fixed_price": "Fixed Price (ct/kWh)",
+          "feed_in_tariff_unit": "Feed-in Tariff Unit",
+          "feed_in_tariff": "Feed-in Tariff",
+          "feed_in_tariff_entity": "Dynamic Feed-in Tariff Sensor",
+          "installation_cost": "Installation Cost",
+          "installation_date": "Installation Date"
+        },
+        "data_description": {
+          "fixed_price": "Your electricity price from provider (gross, incl. VAT)",
+          "feed_in_tariff_unit": "Euro or Cent per kWh",
+          "feed_in_tariff": "Feed-in tariff from grid operator",
+          "feed_in_tariff_entity": "Optional: Sensor for dynamic tariff",
+          "installation_cost": "Total cost of PV system (for amortization calculation)",
+          "installation_date": "For statistics and forecasts"
+        }
+      },
+      "offsets": {
+        "title": "Historical Data",
+        "description": "If you have data from before tracking started.",
+        "data": {
+          "savings_offset": "Already Amortized Amount",
+          "energy_offset_self_consumption": "Self Consumption before Tracking (kWh)",
+          "energy_offset_export": "Export before Tracking (kWh)"
+        },
+        "data_description": {
+          "savings_offset": "If you already have an amortized amount (e.g., from previous tracking)",
+          "energy_offset_self_consumption": "Self consumption kWh that occurred before this tracking",
+          "energy_offset_export": "Export kWh that occurred before this tracking"
+        }
+      },
+      "save": {
+        "title": "Save",
+        "description": "All changes will be saved."
+      }
+    }
+  },
+  "selector": {
+    "feed_in_tariff_unit": {
+      "options": {
+        "eur": "Euro per kWh",
+        "cent": "Cent per kWh"
+      }
+    }
+  }
+}

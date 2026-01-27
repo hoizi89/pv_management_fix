@@ -18,7 +18,7 @@ def get_prices_device_info(name: str) -> DeviceInfo:
         identifiers={(DOMAIN, f"{name}_prices")},
         name=f"{name} Strompreise",
         manufacturer="Custom",
-        model="PV Management - Strompreise",
+        model="PV Management Fixpreis - Strompreise",
         via_device=(DOMAIN, name),
     )
 
@@ -28,7 +28,7 @@ async def async_setup_entry(
 ):
     """Setup der Buttons."""
     ctrl = hass.data[DOMAIN][entry.entry_id][DATA_CTRL]
-    name = entry.data.get(CONF_NAME, "PV Management")
+    name = entry.data.get(CONF_NAME, "PV Fixpreis")
     async_add_entities([
         ResetButton(ctrl, name),
         ResetGridImportButton(ctrl, name),
@@ -49,7 +49,7 @@ class BaseButton(ButtonEntity):
             identifiers={(DOMAIN, name)},
             name=name,
             manufacturer="Custom",
-            model="PV Management",
+            model="PV Management Fixpreis",
         )
 
 

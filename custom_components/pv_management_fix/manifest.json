@@ -1,0 +1,13 @@
+{
+  "domain": "pv_management_fix",
+  "name": "PV Management Fixpreis",
+  "version": "1.0.0",
+  "documentation": "https://github.com/hoizi89/pv_management_fix",
+  "issue_tracker": "https://github.com/hoizi89/pv_management_fix/issues",
+  "requirements": [],
+  "codeowners": ["@hoizi89"],
+  "iot_class": "local_push",
+  "loggers": ["custom_components.pv_management_fix"],
+  "integration_type": "hub",
+  "config_flow": true
+}
