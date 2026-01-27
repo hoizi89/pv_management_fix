@@ -1,6 +1,6 @@
 {
-  "name": "PV Management",
-  "homeassistant": "2023.1.0",
+  "name": "PV Management Fixpreis",
+  "homeassistant": "2024.1.0",
   "render_readme": true,
   "content_in_root": false
 }

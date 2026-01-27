@@ -1,146 +1,129 @@
-# PV Management
+# PV Management Fixpreis
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/hoizi89/pv_management.svg)](https://github.com/hoizi89/pv_management/releases)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![GitHub Release](https://img.shields.io/github/v/release/hoizi89/pv_management_fix)](https://github.com/hoizi89/pv_management_fix/releases)
 
-Eine Home Assistant Integration für PV-Anlagen Management mit Amortisationsberechnung und intelligenter Verbrauchsempfehlung.
+Home Assistant Integration für **Fixpreis-Stromtarife** (z.B. Grünwelt classic, Energie AG).
+
+Berechnet die Amortisation deiner PV-Anlage und vergleicht optional mit Spot-Preisen.
 
 ## Features
 
-### Amortisation
-- **Amortisationsberechnung** - Wie viel % der Anlage ist bereits abbezahlt
-- **Inkrementelle Berechnung** - Korrekt auch bei dynamischen Strompreisen
-- **Eigenverbrauch & Einspeisung** - Automatische Berechnung
-- **Persistente Speicherung** - Daten bleiben nach Neustart erhalten
-- **Euro oder Cent** - Preise in €/kWh oder ct/kWh
-
-### Verbrauchsempfehlung (Ampel)
-- **Intelligente Ampel** - Zeigt ob jetzt ein guter Zeitpunkt zum Verbrauchen ist
-- **Basiert auf:**
-  - Aktuelle PV-Leistung
-  - Batterie-Ladestand
-  - Aktueller Strompreis
-  - Tageszeit
-  - PV-Prognose
-- **Konfigurierbare Schwellwerte** - Passe die Empfehlung an deine Anlage an
-
-### Statistiken
-- Ersparnis pro Tag/Monat/Jahr
-- Restlaufzeit bis Amortisation
-- CO2-Ersparnis
-- Eigenverbrauchsquote & Autarkiegrad
-
-## Sensoren
-
-| Sensor | Beschreibung |
-|--------|--------------|
-| **Verbrauchsempfehlung** | Ampel (Jetzt verbrauchen / Neutral / Vermeiden) |
-| **Amortisation** | Amortisation in % |
-| **Gesamtersparnis** | Gesamte Ersparnis in € |
-| **Restbetrag** | Verbleibender Betrag bis Amortisation |
-| **Status** | Text-Status (z.B. "45.2% amortisiert") |
-| **Eigenverbrauch** | Selbst verbrauchter PV-Strom in kWh |
-| **Einspeisung** | Ins Netz eingespeister Strom in kWh |
-| **Eigenverbrauchsquote** | Anteil der PV-Produktion der selbst verbraucht wird |
-| **Autarkiegrad** | Anteil des Verbrauchs der durch PV gedeckt wird |
-| **Ersparnis pro Tag/Monat/Jahr** | Durchschnittliche Ersparnis |
-| **Restlaufzeit** | Geschätzte Tage bis Amortisation |
-| **Amortisationsdatum** | Geschätztes Datum der vollständigen Amortisation |
-| **CO2 Ersparnis** | Eingesparte CO2-Emissionen in kg |
+- **Amortisationsberechnung** - Wieviel deiner PV-Anlage ist bereits abbezahlt?
+- **Energie-Tracking** - Eigenverbrauch und Einspeisung (inkrementell, persistent)
+- **Ersparnis-Statistiken** - Pro Tag, Monat, Jahr + Prognose
+- **Spot-Vergleich** (optional) - War Fixpreis günstiger als Spot gewesen wäre?
 
 ## Installation
 
 ### HACS (empfohlen)
 
-1. Öffne HACS in Home Assistant
-2. Klicke auf "Integrationen"
-3. Klicke auf die drei Punkte oben rechts -> "Benutzerdefinierte Repositories"
-4. Füge `https://github.com/hoizi89/pv_management` als Repository hinzu (Kategorie: Integration)
-5. Suche nach "PV Management" und installiere es
-6. Starte Home Assistant neu
+1. HACS öffnen → Integrationen → 3-Punkte-Menü → **Benutzerdefinierte Repositories**
+2. URL eingeben: `https://github.com/hoizi89/pv_management_fix`
+3. Kategorie: **Integration**
+4. Integration suchen und installieren
+5. Home Assistant **neu starten**
 
 ### Manuell
 
-1. Kopiere den `custom_components/pv_management` Ordner in dein `config/custom_components/` Verzeichnis
-2. Starte Home Assistant neu
+1. `custom_components/pv_management_fix` Ordner nach `config/custom_components/` kopieren
+2. Home Assistant neu starten
 
 ## Konfiguration
 
-1. Gehe zu Einstellungen -> Geräte & Dienste
-2. Klicke auf "Integration hinzufügen"
-3. Suche nach "PV Management"
-4. Folge dem Setup-Assistenten
+1. Einstellungen → Geräte & Dienste → **Integration hinzufügen**
+2. "PV Management Fixpreis" suchen
+3. Sensoren auswählen:
+   - **PV Produktion** (Pflicht) - kWh Zähler
+   - **Netzeinspeisung** (optional) - für Einspeisevergütung
+   - **Netzbezug** (optional) - für Spot-Vergleich
+4. **Fixpreis** eingeben (Default: 10.92 ct/kWh)
+5. **Anschaffungskosten** eingeben
 
-### Sensoren für Amortisation
-
-| Sensor | Pflicht | Beschreibung |
-|--------|---------|--------------|
-| **PV Produktion** | Ja | Gesamte PV-Produktion in kWh |
-| **Netzeinspeisung** | Nein | Grid-Export in kWh |
-| **Netzbezug** | Nein | Grid-Import in kWh |
-| **Hausverbrauch** | Nein | Gesamtverbrauch in kWh |
-
-### Sensoren für Verbrauchsempfehlung (optional)
+## Sensoren
 
 | Sensor | Beschreibung |
 |--------|--------------|
-| **Batterie-Ladestand** | Aktueller SOC in % |
-| **PV-Leistung** | Aktuelle PV-Leistung in W |
-| **PV-Prognose** | Tagesprognose in kWh |
+| Amortisation | Prozent der abbezahlten Anlage |
+| Gesamtersparnis | Euro gespart durch PV |
+| Restbetrag | Euro bis zur vollständigen Amortisation |
+| Status | Text ("45% amortisiert" / "Amortisiert! +500€ Gewinn") |
+| Restlaufzeit | Tage bis Amortisation (Prognose) |
+| Amortisationsdatum | Geschätztes Datum |
+| Eigenverbrauch | kWh selbst verbraucht |
+| Einspeisung | kWh ins Netz eingespeist |
+| Eigenverbrauchsquote | % der PV-Produktion selbst verbraucht |
+| Autarkiegrad | % des Verbrauchs durch PV gedeckt |
+| Ersparnis pro Tag/Monat/Jahr | Durchschnittswerte |
+| CO2 Ersparnis | kg CO2 eingespart |
+| Fixpreis vs Spot | Euro gespart gegenüber Spot-Tarif (optional) |
 
-### Schwellwerte (in Options konfigurierbar)
+## Options (nachträglich änderbar)
 
-| Einstellung | Standard | Beschreibung |
-|-------------|----------|--------------|
-| **Batterie Hoch** | 80% | Ab hier gilt Batterie als "voll" |
-| **Batterie Niedrig** | 20% | Ab hier gilt Batterie als "leer" |
-| **PV-Leistung Hoch** | 1000W | Ab hier "viel PV" |
-| **Preis Niedrig** | 0.15 €/kWh | Darunter ist Strom "günstig" |
-| **Preis Hoch** | 0.30 €/kWh | Darüber ist Strom "teuer" |
+### Sensoren
+- PV Produktion, Netzeinspeisung, Netzbezug, Verbrauch
+- EPEX Spot Preis (optional, für Vergleich)
+
+### Strompreise & Amortisation
+- **Fixpreis** (ct/kWh) - dein Tarif
+- **Einspeisevergütung** (€/kWh oder ct/kWh)
+- **Anschaffungskosten** (€)
+- **Installationsdatum**
+
+### Historische Daten
+- Bereits amortisierter Betrag (€)
+- Eigenverbrauch/Einspeisung vor Tracking (kWh)
 
 ## Beispiel Dashboard
 
 ```yaml
 type: entities
-title: PV Management
+title: PV Fixpreis
 entities:
-  - entity: sensor.pv_management_verbrauchsempfehlung
+  - entity: sensor.pv_fixpreis_status
+  - entity: sensor.pv_fixpreis_amortisation
+  - entity: sensor.pv_fixpreis_gesamtersparnis
+  - entity: sensor.pv_fixpreis_restbetrag
+  - entity: sensor.pv_fixpreis_restlaufzeit
   - type: divider
-  - entity: sensor.pv_management_status
-  - entity: sensor.pv_management_amortisation
-  - entity: sensor.pv_management_gesamtersparnis
-  - entity: sensor.pv_management_restbetrag
-  - entity: sensor.pv_management_restlaufzeit
+  - entity: sensor.pv_fixpreis_eigenverbrauch
+  - entity: sensor.pv_fixpreis_einspeisung
+  - entity: sensor.pv_fixpreis_eigenverbrauchsquote
   - type: divider
-  - entity: sensor.pv_management_eigenverbrauch
-  - entity: sensor.pv_management_einspeisung
-  - entity: sensor.pv_management_eigenverbrauchsquote
-  - type: divider
-  - entity: sensor.pv_management_ersparnis_pro_tag
-  - entity: sensor.pv_management_ersparnis_pro_monat
-  - entity: sensor.pv_management_co2_ersparnis
+  - entity: sensor.pv_fixpreis_ersparnis_pro_monat
+  - entity: sensor.pv_fixpreis_co2_ersparnis
 ```
+
+## Unterschied zu pv_management
+
+Diese Integration ist für **Fixpreis-Tarife** optimiert.
+
+Für **Spot-Tarife** (aWATTar, smartENERGY) mit Batterie-Management verwende:
+👉 [pv_management](https://github.com/hoizi89/pv_management)
+
+| Feature | pv_management | pv_management_fix |
+|---------|--------------|-------------------|
+| Amortisation | ✅ | ✅ |
+| Energie-Tracking | ✅ | ✅ |
+| Empfehlungsampel | ✅ | ❌ |
+| Auto-Charge | ✅ | ❌ |
+| Discharge Control | ✅ | ❌ |
+| EPEX Quantile | ✅ | ❌ |
+| Solcast | ✅ | ❌ |
+| Spot-Vergleich | ✅ | ✅ (optional) |
 
 ## Changelog
 
-### v2.0.0
-- Umbenannt zu "PV Management"
-- Neuer Verbrauchsempfehlungs-Sensor (Ampel)
-- Batterie-Integration
-- PV-Prognose-Integration
-- Konfigurierbare Schwellwerte
-
-### v1.1.0
-- Inkrementelle Berechnung für dynamische Preise
-- Persistente Speicherung via RestoreEntity
-- Sensoren nachträglich änderbar
-- Diagnose-Sensor
-
 ### v1.0.0
-- Initiales Release
-- Amortisationsberechnung
-- Euro/Cent Unterstützung
-- 21 verschiedene Sensoren
+- Initial Release
+- Amortisationsberechnung mit Fixpreis
+- Energie-Tracking (Eigenverbrauch, Einspeisung)
+- Ersparnis-Statistiken (Tag/Monat/Jahr)
+- Optional: Spot-Vergleich mit EPEX
+
+## Support
+
+[Issues melden](https://github.com/hoizi89/pv_management_fix/issues)
 
 ## Lizenz
 
