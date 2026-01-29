@@ -3,82 +3,104 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub Release](https://img.shields.io/github/v/release/hoizi89/pv_management_fix)](https://github.com/hoizi89/pv_management_fix/releases)
 
-Home Assistant Integration für **Fixpreis-Stromtarife** (z.B. Grünwelt classic, Energie AG).
+Home Assistant integration for **fixed-price electricity tariffs** (e.g. Gruenwelt classic, Energie AG).
 
-Berechnet die Amortisation deiner PV-Anlage und vergleicht optional mit Spot-Preisen.
+Calculates the amortization of your PV system and optionally compares with spot prices.
 
 ## Features
 
-- **Amortisationsberechnung** - Wieviel deiner PV-Anlage ist bereits abbezahlt?
-- **Energie-Tracking** - Eigenverbrauch und Einspeisung (inkrementell, persistent)
-- **Ersparnis-Statistiken** - Pro Tag, Monat, Jahr + Prognose
-- **Spot-Vergleich** (optional) - War Fixpreis günstiger als Spot gewesen wäre?
+- **Amortization calculation** - How much of your PV system is already paid off?
+- **Energy tracking** - Self-consumption and feed-in (incremental, persistent)
+- **Savings statistics** - Per day, month, year + forecast
+- **Spot comparison** (optional) - Would spot pricing have been cheaper than your fixed price?
+- **Electricity quota** (new in v1.1.0) - Yearly kWh budget tracking for fixed-price tariffs
 
 ## Installation
 
-### HACS (empfohlen)
+### HACS (recommended)
 
-1. HACS öffnen → Integrationen → 3-Punkte-Menü → **Benutzerdefinierte Repositories**
-2. URL eingeben: `https://github.com/hoizi89/pv_management_fix`
-3. Kategorie: **Integration**
-4. Integration suchen und installieren
-5. Home Assistant **neu starten**
+1. Open HACS > Integrations > 3-dot menu > **Custom repositories**
+2. Enter URL: `https://github.com/hoizi89/pv_management_fix`
+3. Category: **Integration**
+4. Search for the integration and install
+5. **Restart** Home Assistant
 
-### Manuell
+### Manual
 
-1. `custom_components/pv_management_fix` Ordner nach `config/custom_components/` kopieren
-2. Home Assistant neu starten
+1. Copy `custom_components/pv_management_fix` folder to `config/custom_components/`
+2. Restart Home Assistant
 
-## Konfiguration
+## Configuration
 
-1. Einstellungen → Geräte & Dienste → **Integration hinzufügen**
-2. "PV Management Fixpreis" suchen
-3. Sensoren auswählen:
-   - **PV Produktion** (Pflicht) - kWh Zähler
-   - **Netzeinspeisung** (optional) - für Einspeisevergütung
-   - **Netzbezug** (optional) - für Spot-Vergleich
-4. **Fixpreis** eingeben (Default: 10.92 ct/kWh)
-5. **Anschaffungskosten** eingeben
+1. Settings > Devices & Services > **Add Integration**
+2. Search for "PV Management Fixpreis"
+3. Select sensors:
+   - **PV Production** (required) - kWh counter
+   - **Grid Export** (optional) - for feed-in earnings
+   - **Grid Import** (optional) - for spot comparison & electricity quota
+4. Enter your **fixed price** (default: 10.92 ct/kWh)
+5. Enter **installation cost**
 
-## Sensoren
+## Sensors
 
-| Sensor | Beschreibung |
-|--------|--------------|
-| Amortisation | Prozent der abbezahlten Anlage |
-| Gesamtersparnis | Euro gespart durch PV |
-| Restbetrag | Euro bis zur vollständigen Amortisation |
-| Status | Text ("45% amortisiert" / "Amortisiert! +500€ Gewinn") |
-| Restlaufzeit | Tage bis Amortisation (Prognose) |
-| Amortisationsdatum | Geschätztes Datum |
-| Eigenverbrauch | kWh selbst verbraucht |
-| Einspeisung | kWh ins Netz eingespeist |
-| Eigenverbrauchsquote | % der PV-Produktion selbst verbraucht |
-| Autarkiegrad | % des Verbrauchs durch PV gedeckt |
-| Ersparnis pro Tag/Monat/Jahr | Durchschnittswerte |
-| CO2 Ersparnis | kg CO2 eingespart |
-| Fixpreis vs Spot | Euro gespart gegenüber Spot-Tarif (optional) |
+| Sensor | Description |
+|--------|-------------|
+| Amortisation | Percentage of system paid off |
+| Gesamtersparnis | Total savings in EUR |
+| Restbetrag | Remaining EUR until full amortization |
+| Status | Text ("45% amortisiert" / "Amortisiert! +500 EUR") |
+| Restlaufzeit | Days until amortization (forecast) |
+| Amortisationsdatum | Estimated payback date |
+| Eigenverbrauch | kWh self-consumed |
+| Einspeisung | kWh fed into grid |
+| Eigenverbrauchsquote | % of PV production self-consumed |
+| Autarkiegrad | % of consumption covered by PV |
+| Ersparnis pro Tag/Monat/Jahr | Average savings |
+| CO2 Ersparnis | kg CO2 saved |
+| Fixpreis vs Spot | EUR saved vs. spot tariff (optional) |
 
-## Options (nachträglich änderbar)
+### Electricity Quota Sensors (v1.1.0)
 
-### Sensoren
-- PV Produktion, Netzeinspeisung, Netzbezug, Verbrauch
-- EPEX Spot Preis (optional, für Vergleich)
+When enabled, these sensors appear under a separate "Stromkontingent" device:
 
-### Strompreise & Amortisation
-- **Fixpreis** (ct/kWh) - dein Tarif
-- **Einspeisevergütung** (€/kWh oder ct/kWh)
-- **Anschaffungskosten** (€)
-- **Installationsdatum**
+| Sensor | Description |
+|--------|-------------|
+| Kontingent Verbleibend | Remaining kWh in yearly quota |
+| Kontingent Verbrauch | Percentage of yearly quota consumed |
+| Kontingent Reserve | kWh ahead/behind linear budget (positive = good) |
+| Kontingent Tagesbudget | Daily kWh budget for remaining period |
+| Kontingent Prognose | Projected yearly consumption at current rate |
+| Kontingent Restlaufzeit | Days remaining in tariff period |
+| Kontingent Status | Text summary ("Im Budget (+180 kWh)" or "Ueber Budget (-50 kWh)") |
 
-### Historische Daten
-- Bereits amortisierter Betrag (€)
-- Eigenverbrauch/Einspeisung vor Tracking (kWh)
+## Options (changeable after setup)
 
-## Beispiel Dashboard
+### Sensors
+- PV Production, Grid Export, Grid Import, Consumption
+- EPEX Spot Price (optional, for comparison)
+
+### Electricity Prices & Amortization
+- **Fixed price** (ct/kWh) - your tariff
+- **Feed-in tariff** (EUR/kWh or ct/kWh)
+- **Installation cost** (EUR)
+- **Installation date**
+
+### Historical Data
+- Already amortized amount (EUR)
+- Self-consumption / export before tracking (kWh)
+
+### Electricity Quota
+- **Enable/disable** quota tracking
+- **Yearly quota** in kWh (e.g. 4000)
+- **Period start date** (from your invoice, doesn't have to be Jan 1)
+- **Meter reading at start** (grid import counter at period start)
+- **Monthly payment** (optional, display only)
+
+## Dashboard Example
 
 ```yaml
 type: entities
-title: PV Fixpreis
+title: PV Fixed Price
 entities:
   - entity: sensor.pv_fixpreis_status
   - entity: sensor.pv_fixpreis_amortisation
@@ -94,37 +116,59 @@ entities:
   - entity: sensor.pv_fixpreis_co2_ersparnis
 ```
 
-## Unterschied zu pv_management
+### Electricity Quota Dashboard
 
-Diese Integration ist für **Fixpreis-Tarife** optimiert.
+```yaml
+type: entities
+title: Electricity Quota
+entities:
+  - entity: sensor.pv_fixpreis_kontingent_status
+  - entity: sensor.pv_fixpreis_kontingent_verbleibend
+  - entity: sensor.pv_fixpreis_kontingent_verbrauch
+  - entity: sensor.pv_fixpreis_kontingent_reserve
+  - entity: sensor.pv_fixpreis_kontingent_tagesbudget
+  - entity: sensor.pv_fixpreis_kontingent_prognose
+  - entity: sensor.pv_fixpreis_kontingent_restlaufzeit
+```
 
-Für **Spot-Tarife** (aWATTar, smartENERGY) mit Batterie-Management verwende:
-👉 [pv_management](https://github.com/hoizi89/pv_management)
+## Difference to pv_management
+
+This integration is optimized for **fixed-price tariffs**.
+
+For **spot tariffs** (aWATTar, smartENERGY) with battery management use:
+[pv_management](https://github.com/hoizi89/pv_management)
 
 | Feature | pv_management | pv_management_fix |
 |---------|--------------|-------------------|
-| Amortisation | ✅ | ✅ |
-| Energie-Tracking | ✅ | ✅ |
-| Empfehlungsampel | ✅ | ❌ |
-| Auto-Charge | ✅ | ❌ |
-| Discharge Control | ✅ | ❌ |
-| EPEX Quantile | ✅ | ❌ |
-| Solcast | ✅ | ❌ |
-| Spot-Vergleich | ✅ | ✅ (optional) |
+| Amortization | Yes | Yes |
+| Energy Tracking | Yes | Yes |
+| Electricity Quota | No | Yes |
+| Recommendation Signal | Yes | No |
+| Auto-Charge | Yes | No |
+| Discharge Control | Yes | No |
+| EPEX Quantile | Yes | No |
+| Solcast | Yes | No |
+| Spot Comparison | Yes | Yes (optional) |
 
 ## Changelog
 
+### v1.1.0
+- New: Electricity quota (Stromkontingent) - yearly kWh budget tracking
+- 7 new sensors: remaining, consumed %, reserve, daily budget, forecast, days remaining, status
+- New options page for quota configuration
+- Translations DE/EN
+
 ### v1.0.0
-- Initial Release
-- Amortisationsberechnung mit Fixpreis
-- Energie-Tracking (Eigenverbrauch, Einspeisung)
-- Ersparnis-Statistiken (Tag/Monat/Jahr)
-- Optional: Spot-Vergleich mit EPEX
+- Initial release
+- Amortization calculation with fixed price
+- Energy tracking (self-consumption, feed-in)
+- Savings statistics (day/month/year)
+- Optional: Spot comparison with EPEX
 
 ## Support
 
-[Issues melden](https://github.com/hoizi89/pv_management_fix/issues)
+[Report issues](https://github.com/hoizi89/pv_management_fix/issues)
 
-## Lizenz
+## License
 
-MIT License - siehe [LICENSE](LICENSE)
+MIT License - see [LICENSE](LICENSE)
