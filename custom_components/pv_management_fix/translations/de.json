@@ -46,6 +46,7 @@
           "sensors": "Sensoren",
           "prices": "Strompreise & Amortisation",
           "offsets": "Historische Daten",
+          "quota": "Stromkontingent",
           "save": "Speichern & Schließen"
         }
       },
@@ -99,6 +100,24 @@
           "savings_offset": "Falls du bereits einen Betrag amortisiert hast (z.B. aus vorherigem Tracking)",
           "energy_offset_self_consumption": "Eigenverbrauch-kWh die vor diesem Tracking angefallen sind",
           "energy_offset_export": "Einspeise-kWh die vor diesem Tracking angefallen sind"
+        }
+      },
+      "quota": {
+        "title": "Stromkontingent",
+        "description": "Fixstrom-Tarif mit Jahres-kWh-Kontingent. Zeigt ob du im Budget bist.",
+        "data": {
+          "quota_enabled": "Stromkontingent aktivieren",
+          "quota_yearly_kwh": "Jahres-Kontingent (kWh)",
+          "quota_start_date": "Startdatum der Tarifperiode",
+          "quota_start_meter": "Zählerstand Netzbezug am Startdatum",
+          "quota_monthly_rate": "Monatlicher Abschlag (€)"
+        },
+        "data_description": {
+          "quota_enabled": "Aktiviert die Stromkontingent-Sensoren",
+          "quota_yearly_kwh": "Dein Jahres-Kontingent in kWh (z.B. 4000 kWh)",
+          "quota_start_date": "Beginn der Tarifperiode (von Rechnung ablesen, muss nicht 1.1. sein)",
+          "quota_start_meter": "Zählerstand Netzbezug am Startdatum (von Rechnung/Zähler ablesen)",
+          "quota_monthly_rate": "Optional: Monatlicher Abschlag in € (nur zur Anzeige)"
         }
       },
       "save": {

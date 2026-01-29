@@ -21,6 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 # Geräte-Typen
 DEVICE_MAIN = "main"
 DEVICE_PRICES = "prices"
+DEVICE_QUOTA = "quota"
 
 
 def get_device_info(name: str, device_type: str = DEVICE_MAIN) -> DeviceInfo:
@@ -31,6 +32,14 @@ def get_device_info(name: str, device_type: str = DEVICE_MAIN) -> DeviceInfo:
             name=f"{name} Strompreise",
             manufacturer="Custom",
             model="PV Management Fixpreis - Strompreise",
+            via_device=(DOMAIN, name),
+        )
+    elif device_type == DEVICE_QUOTA:
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{name}_quota")},
+            name=f"{name} Stromkontingent",
+            manufacturer="Custom",
+            model="PV Management Fixpreis - Stromkontingent",
             via_device=(DOMAIN, name),
         )
     else:  # DEVICE_MAIN
@@ -88,6 +97,18 @@ async def async_setup_entry(
         TotalGridImportCostSensor(ctrl, name),
         FixedVsSpotSensor(ctrl, name),
     ]
+
+    # === STROMKONTINGENT (nur wenn aktiviert) ===
+    if ctrl.quota_enabled:
+        entities.extend([
+            QuotaRemainingSensor(ctrl, name),
+            QuotaConsumedPercentSensor(ctrl, name),
+            QuotaReserveSensor(ctrl, name),
+            QuotaDailyBudgetSensor(ctrl, name),
+            QuotaForecastSensor(ctrl, name),
+            QuotaDaysRemainingSensor(ctrl, name),
+            QuotaStatusSensor(ctrl, name),
+        ])
 
     async_add_entities(entities)
 
@@ -882,4 +903,229 @@ class FixedVsSpotSensor(BaseEntity):
         if not self.ctrl.has_epex_integration:
             attrs["hinweis"] = "Kein EPEX Sensor konfiguriert - Vergleich nicht möglich"
 
+        return attrs
+
+
+# =============================================================================
+# STROMKONTINGENT SENSOREN
+# =============================================================================
+
+
+class QuotaRemainingSensor(BaseEntity):
+    """Kontingent Verbleibend - Hauptsensor: wieviel kWh noch übrig."""
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Kontingent Verbleibend",
+            unit="kWh",
+            icon="mdi:lightning-bolt",
+            state_class=SensorStateClass.MEASUREMENT,
+            device_class=SensorDeviceClass.ENERGY,
+            device_type=DEVICE_QUOTA,
+        )
+
+    @property
+    def native_value(self) -> float:
+        return round(self.ctrl.quota_remaining_kwh, 1)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {
+            "jahres_kontingent_kwh": self.ctrl.quota_yearly_kwh,
+            "verbraucht_kwh": round(self.ctrl.quota_consumed_kwh, 1),
+            "abschlag_eur": self.ctrl.quota_monthly_rate if self.ctrl.quota_monthly_rate > 0 else None,
+        }
+
+
+class QuotaConsumedPercentSensor(BaseEntity):
+    """Kontingent Verbrauch - Prozent des Jahres-Kontingents verbraucht."""
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Kontingent Verbrauch",
+            unit="%",
+            icon="mdi:gauge",
+            state_class=SensorStateClass.MEASUREMENT,
+            device_type=DEVICE_QUOTA,
+        )
+
+    @property
+    def native_value(self) -> float:
+        return round(self.ctrl.quota_consumed_percent, 1)
+
+
+class QuotaReserveSensor(BaseEntity):
+    """Kontingent Reserve - positiv = unter Budget, negativ = drüber."""
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Kontingent Reserve",
+            unit="kWh",
+            icon="mdi:shield-check",
+            state_class=SensorStateClass.MEASUREMENT,
+            device_type=DEVICE_QUOTA,
+        )
+
+    @property
+    def native_value(self) -> float:
+        return round(self.ctrl.quota_reserve_kwh, 1)
+
+    @property
+    def icon(self) -> str:
+        reserve = self.ctrl.quota_reserve_kwh
+        if reserve >= 0:
+            return "mdi:shield-check"
+        return "mdi:shield-alert"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {
+            "soll_verbrauch_kwh": round(self.ctrl.quota_expected_kwh, 1),
+            "ist_verbrauch_kwh": round(self.ctrl.quota_consumed_kwh, 1),
+        }
+
+
+class QuotaDailyBudgetSensor(BaseEntity):
+    """Kontingent Tagesbudget - wieviel pro Tag noch verbrauchen darf."""
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Kontingent Tagesbudget",
+            unit="kWh/Tag",
+            icon="mdi:calendar-today",
+            state_class=SensorStateClass.MEASUREMENT,
+            device_type=DEVICE_QUOTA,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        budget = self.ctrl.quota_daily_budget_kwh
+        if budget is None:
+            return None
+        return round(budget, 1)
+
+
+class QuotaForecastSensor(BaseEntity):
+    """Kontingent Prognose - Hochrechnung Verbrauch am Periodenende."""
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Kontingent Prognose",
+            unit="kWh",
+            icon="mdi:crystal-ball",
+            state_class=SensorStateClass.MEASUREMENT,
+            device_type=DEVICE_QUOTA,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        forecast = self.ctrl.quota_forecast_kwh
+        if forecast is None:
+            return None
+        return round(forecast, 0)
+
+    @property
+    def icon(self) -> str:
+        forecast = self.ctrl.quota_forecast_kwh
+        if forecast is None:
+            return "mdi:crystal-ball"
+        if forecast <= self.ctrl.quota_yearly_kwh:
+            return "mdi:trending-down"
+        return "mdi:trending-up"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        forecast = self.ctrl.quota_forecast_kwh
+        attrs = {
+            "kontingent_kwh": self.ctrl.quota_yearly_kwh,
+        }
+        if forecast is not None:
+            diff = forecast - self.ctrl.quota_yearly_kwh
+            attrs["prognose_differenz_kwh"] = round(diff, 0)
+            if diff > 0:
+                attrs["bewertung"] = f"Voraussichtlich {diff:.0f} kWh über Kontingent"
+            else:
+                attrs["bewertung"] = f"Voraussichtlich {abs(diff):.0f} kWh unter Kontingent"
+        return attrs
+
+
+class QuotaDaysRemainingSensor(BaseEntity):
+    """Kontingent Restlaufzeit - verbleibende Tage in der Periode."""
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Kontingent Restlaufzeit",
+            unit="Tage",
+            icon="mdi:calendar-clock",
+            state_class=SensorStateClass.MEASUREMENT,
+            device_type=DEVICE_QUOTA,
+        )
+
+    @property
+    def native_value(self) -> int:
+        return self.ctrl.quota_days_remaining
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        start = self.ctrl.quota_start_date
+        end = self.ctrl.quota_end_date
+        return {
+            "perioden_start": start.isoformat() if start else None,
+            "perioden_ende": end.isoformat() if end else None,
+            "tage_vergangen": self.ctrl.quota_days_elapsed,
+            "tage_gesamt": self.ctrl.quota_days_total,
+        }
+
+
+class QuotaStatusSensor(BaseEntity):
+    """Kontingent Status - Textuelle Zusammenfassung."""
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Kontingent Status",
+            icon="mdi:text-box-check",
+            device_type=DEVICE_QUOTA,
+        )
+
+    @property
+    def native_value(self) -> str:
+        return self.ctrl.quota_status_text
+
+    @property
+    def icon(self) -> str:
+        reserve = self.ctrl.quota_reserve_kwh
+        if reserve >= 0:
+            return "mdi:text-box-check"
+        return "mdi:text-box-remove"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        attrs = {
+            "verbraucht_kwh": round(self.ctrl.quota_consumed_kwh, 1),
+            "verbleibend_kwh": round(self.ctrl.quota_remaining_kwh, 1),
+            "reserve_kwh": round(self.ctrl.quota_reserve_kwh, 1),
+            "verbrauch_prozent": round(self.ctrl.quota_consumed_percent, 1),
+        }
+        forecast = self.ctrl.quota_forecast_kwh
+        if forecast is not None:
+            attrs["prognose_kwh"] = round(forecast, 0)
+        budget = self.ctrl.quota_daily_budget_kwh
+        if budget is not None:
+            attrs["tagesbudget_kwh"] = round(budget, 1)
+        if self.ctrl.quota_monthly_rate > 0:
+            attrs["monatlicher_abschlag_eur"] = self.ctrl.quota_monthly_rate
         return attrs

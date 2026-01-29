@@ -17,10 +17,14 @@ from .const import (
     CONF_INSTALLATION_COST, CONF_INSTALLATION_DATE, CONF_SAVINGS_OFFSET,
     CONF_ENERGY_OFFSET_SELF, CONF_ENERGY_OFFSET_EXPORT,
     CONF_FIXED_PRICE, CONF_EPEX_PRICE_ENTITY,
+    CONF_QUOTA_ENABLED, CONF_QUOTA_YEARLY_KWH, CONF_QUOTA_START_DATE,
+    CONF_QUOTA_START_METER, CONF_QUOTA_MONTHLY_RATE,
     DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
     DEFAULT_FIXED_PRICE, DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT,
+    DEFAULT_QUOTA_ENABLED, DEFAULT_QUOTA_YEARLY_KWH,
+    DEFAULT_QUOTA_START_METER, DEFAULT_QUOTA_MONTHLY_RATE,
     PRICE_UNIT_CENT,
 )
 
@@ -129,6 +133,13 @@ class PVManagementFixController:
 
         # Fixpreis (ct/kWh → €/kWh)
         self.fixed_price = opts.get(CONF_FIXED_PRICE, DEFAULT_FIXED_PRICE) / 100.0
+
+        # Stromkontingent
+        self.quota_enabled = opts.get(CONF_QUOTA_ENABLED, DEFAULT_QUOTA_ENABLED)
+        self.quota_yearly_kwh = opts.get(CONF_QUOTA_YEARLY_KWH, DEFAULT_QUOTA_YEARLY_KWH)
+        self.quota_start_date_str = opts.get(CONF_QUOTA_START_DATE)
+        self.quota_start_meter = opts.get(CONF_QUOTA_START_METER, DEFAULT_QUOTA_START_METER)
+        self.quota_monthly_rate = opts.get(CONF_QUOTA_MONTHLY_RATE, DEFAULT_QUOTA_MONTHLY_RATE)
 
     @property
     def fixed_price_ct(self) -> float:
@@ -310,6 +321,110 @@ class PVManagementFixController:
         # Differenz pro kWh: was hätte Spot gekostet - was hat Fixpreis gekostet
         diff_per_kwh = avg_spot - self.fixed_price
         return diff_per_kwh * self._tracked_grid_import_kwh
+
+    # =========================================================================
+    # STROMKONTINGENT
+    # =========================================================================
+
+    @property
+    def quota_start_date(self) -> date | None:
+        """Startdatum der Kontingent-Periode."""
+        if not self.quota_start_date_str:
+            return None
+        try:
+            if isinstance(self.quota_start_date_str, str):
+                return datetime.fromisoformat(self.quota_start_date_str).date()
+            return self.quota_start_date_str
+        except (ValueError, TypeError):
+            return None
+
+    @property
+    def quota_end_date(self) -> date | None:
+        """Enddatum der Kontingent-Periode (Start + 1 Jahr)."""
+        start = self.quota_start_date
+        if start is None:
+            return None
+        from datetime import timedelta
+        return start + timedelta(days=365)
+
+    @property
+    def quota_days_total(self) -> int:
+        """Gesamttage der Periode (365)."""
+        return 365
+
+    @property
+    def quota_days_elapsed(self) -> int:
+        """Vergangene Tage seit Periodenbeginn."""
+        start = self.quota_start_date
+        if start is None:
+            return 0
+        elapsed = (date.today() - start).days
+        return max(0, min(elapsed, self.quota_days_total))
+
+    @property
+    def quota_days_remaining(self) -> int:
+        """Verbleibende Tage in der Periode."""
+        return max(0, self.quota_days_total - self.quota_days_elapsed)
+
+    @property
+    def quota_consumed_kwh(self) -> float:
+        """Verbrauchte kWh seit Periodenbeginn (Zählerstand - Startwert)."""
+        if not self.quota_enabled or self.quota_start_date is None:
+            return 0.0
+        current_meter = self._grid_import_kwh
+        consumed = current_meter - self.quota_start_meter
+        return max(0.0, consumed)
+
+    @property
+    def quota_remaining_kwh(self) -> float:
+        """Verbleibendes Kontingent in kWh."""
+        return self.quota_yearly_kwh - self.quota_consumed_kwh
+
+    @property
+    def quota_consumed_percent(self) -> float:
+        """Verbrauchter Anteil des Kontingents in Prozent."""
+        if self.quota_yearly_kwh <= 0:
+            return 0.0
+        return min(100.0, (self.quota_consumed_kwh / self.quota_yearly_kwh) * 100)
+
+    @property
+    def quota_expected_kwh(self) -> float:
+        """Soll-Verbrauch bei linearer Verteilung."""
+        if self.quota_days_total <= 0:
+            return 0.0
+        return (self.quota_days_elapsed / self.quota_days_total) * self.quota_yearly_kwh
+
+    @property
+    def quota_reserve_kwh(self) -> float:
+        """Reserve: Soll minus Ist. Positiv = unter Budget, negativ = drüber."""
+        return self.quota_expected_kwh - self.quota_consumed_kwh
+
+    @property
+    def quota_daily_budget_kwh(self) -> float | None:
+        """Tagesbudget für Rest der Periode (kWh/Tag)."""
+        remaining_days = self.quota_days_remaining
+        if remaining_days <= 0:
+            return None
+        return self.quota_remaining_kwh / remaining_days
+
+    @property
+    def quota_forecast_kwh(self) -> float | None:
+        """Hochrechnung: Verbrauch am Periodenende bei aktuellem Tempo."""
+        days_elapsed = self.quota_days_elapsed
+        if days_elapsed <= 0:
+            return None
+        return (self.quota_consumed_kwh / days_elapsed) * self.quota_days_total
+
+    @property
+    def quota_status_text(self) -> str:
+        """Status-Text für Kontingent."""
+        if not self.quota_enabled or self.quota_start_date is None:
+            return "Nicht konfiguriert"
+        reserve = self.quota_reserve_kwh
+        if reserve >= 0:
+            return f"Im Budget (+{reserve:.0f} kWh Reserve)"
+        else:
+            return f"Über Budget ({reserve:.0f} kWh)"
 
     # =========================================================================
     # AMORTISATION

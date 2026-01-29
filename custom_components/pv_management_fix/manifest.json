@@ -9,5 +9,5 @@
   "issue_tracker": "https://github.com/hoizi89/pv_management_fix/issues",
   "loggers": ["custom_components.pv_management_fix"],
   "requirements": [],
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

@@ -43,6 +43,13 @@ CONF_INSTALLATION_DATE: Final[str] = "installation_date"
 # --- Fixpreis (Haupt-Feature dieser Integration) ------------------------------
 CONF_FIXED_PRICE: Final[str] = "fixed_price"  # Der Fixpreis in ct/kWh
 
+# --- Stromkontingent (Jahres-kWh-Budget) --------------------------------------
+CONF_QUOTA_ENABLED: Final[str] = "quota_enabled"
+CONF_QUOTA_YEARLY_KWH: Final[str] = "quota_yearly_kwh"
+CONF_QUOTA_START_DATE: Final[str] = "quota_start_date"
+CONF_QUOTA_START_METER: Final[str] = "quota_start_meter"
+CONF_QUOTA_MONTHLY_RATE: Final[str] = "quota_monthly_rate"
+
 # --- Defaults -----------------------------------------------------------------
 DEFAULT_NAME: Final[str] = "PV Fixpreis"
 DEFAULT_ELECTRICITY_PRICE: Final[float] = 0.1092  # €/kWh (Grünwelt classic)
@@ -57,6 +64,12 @@ DEFAULT_ENERGY_OFFSET_EXPORT: Final[float] = 0.0  # kWh Export vor Tracking
 # Fixpreis Default (Grünwelt classic brutto)
 DEFAULT_FIXED_PRICE: Final[float] = 10.92  # ct/kWh
 
+# Stromkontingent Defaults
+DEFAULT_QUOTA_ENABLED: Final[bool] = False
+DEFAULT_QUOTA_YEARLY_KWH: Final[float] = 4000.0  # kWh pro Jahr
+DEFAULT_QUOTA_START_METER: Final[float] = 0.0  # Zählerstand bei Start
+DEFAULT_QUOTA_MONTHLY_RATE: Final[float] = 0.0  # €/Monat Abschlag
+
 # --- Ranges für Config Flow / Options -----------------------------------------
 RANGE_PRICE_EUR: Final[dict] = {"min": 0.01, "max": 1.0, "step": 0.001}
 RANGE_PRICE_CENT: Final[dict] = {"min": 1.0, "max": 100.0, "step": 0.01}
@@ -65,3 +78,8 @@ RANGE_TARIFF_CENT: Final[dict] = {"min": 0.0, "max": 50.0, "step": 0.01}
 RANGE_COST: Final[dict] = {"min": 0.0, "max": 200000.0, "step": 1.0}
 RANGE_OFFSET: Final[dict] = {"min": 0.0, "max": 100000.0, "step": 0.01}
 RANGE_ENERGY_OFFSET: Final[dict] = {"min": 0.0, "max": 500000.0, "step": 0.01}
+
+# Stromkontingent Ranges
+RANGE_QUOTA_KWH: Final[dict] = {"min": 100.0, "max": 100000.0, "step": 1.0}
+RANGE_QUOTA_METER: Final[dict] = {"min": 0.0, "max": 9999999.0, "step": 0.01}
+RANGE_QUOTA_RATE: Final[dict] = {"min": 0.0, "max": 10000.0, "step": 0.01}

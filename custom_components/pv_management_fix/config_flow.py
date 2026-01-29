@@ -14,11 +14,16 @@ from .const import (
     CONF_SAVINGS_OFFSET, CONF_FIXED_PRICE,
     CONF_ENERGY_OFFSET_SELF, CONF_ENERGY_OFFSET_EXPORT,
     CONF_EPEX_PRICE_ENTITY,
+    CONF_QUOTA_ENABLED, CONF_QUOTA_YEARLY_KWH, CONF_QUOTA_START_DATE,
+    CONF_QUOTA_START_METER, CONF_QUOTA_MONTHLY_RATE,
     DEFAULT_NAME, DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET, DEFAULT_FIXED_PRICE,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
     DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT,
+    DEFAULT_QUOTA_ENABLED, DEFAULT_QUOTA_YEARLY_KWH,
+    DEFAULT_QUOTA_START_METER, DEFAULT_QUOTA_MONTHLY_RATE,
     RANGE_COST, RANGE_OFFSET, RANGE_ENERGY_OFFSET,
+    RANGE_QUOTA_KWH, RANGE_QUOTA_METER, RANGE_QUOTA_RATE,
     PRICE_UNIT_EUR, PRICE_UNIT_CENT,
 )
 
@@ -123,6 +128,7 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                 "sensors": "Sensoren",
                 "prices": "Strompreise & Amortisation",
                 "offsets": "Historische Daten",
+                "quota": "Stromkontingent",
                 "save": "Speichern & Schließen",
             },
         )
@@ -238,6 +244,45 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                         selector.NumberSelectorConfig(
                             min=RANGE_ENERGY_OFFSET["min"], max=RANGE_ENERGY_OFFSET["max"], step=RANGE_ENERGY_OFFSET["step"],
                             unit_of_measurement="kWh", mode=selector.NumberSelectorMode.BOX
+                        )
+                    ),
+            })
+        )
+
+    async def async_step_quota(self, user_input=None):
+        """Stromkontingent konfigurieren."""
+        if user_input is not None:
+            return await self._save_and_return_to_menu(user_input)
+
+        return self.async_show_form(
+            step_id="quota",
+            data_schema=vol.Schema({
+                vol.Required(CONF_QUOTA_ENABLED, default=self._get_val(CONF_QUOTA_ENABLED, DEFAULT_QUOTA_ENABLED)):
+                    selector.BooleanSelector(),
+                vol.Required(CONF_QUOTA_YEARLY_KWH, default=self._get_val(CONF_QUOTA_YEARLY_KWH, DEFAULT_QUOTA_YEARLY_KWH)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=RANGE_QUOTA_KWH["min"], max=RANGE_QUOTA_KWH["max"], step=RANGE_QUOTA_KWH["step"],
+                            unit_of_measurement="kWh",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                vol.Optional(CONF_QUOTA_START_DATE, default=self._get_val(CONF_QUOTA_START_DATE)):
+                    selector.DateSelector(),
+                vol.Required(CONF_QUOTA_START_METER, default=self._get_val(CONF_QUOTA_START_METER, DEFAULT_QUOTA_START_METER)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=RANGE_QUOTA_METER["min"], max=RANGE_QUOTA_METER["max"], step=RANGE_QUOTA_METER["step"],
+                            unit_of_measurement="kWh",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                vol.Optional(CONF_QUOTA_MONTHLY_RATE, default=self._get_val(CONF_QUOTA_MONTHLY_RATE, DEFAULT_QUOTA_MONTHLY_RATE)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=RANGE_QUOTA_RATE["min"], max=RANGE_QUOTA_RATE["max"], step=RANGE_QUOTA_RATE["step"],
+                            unit_of_measurement="€/Monat",
+                            mode=selector.NumberSelectorMode.BOX,
                         )
                     ),
             })
