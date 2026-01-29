@@ -110,14 +110,16 @@
           "quota_yearly_kwh": "Jahres-Kontingent (kWh)",
           "quota_start_date": "Startdatum der Tarifperiode",
           "quota_start_meter": "Zählerstand Netzbezug am Startdatum",
-          "quota_monthly_rate": "Monatlicher Abschlag (€)"
+          "quota_monthly_rate": "Monatlicher Abschlag (€)",
+          "quota_seasonal": "Saisonale Berechnung"
         },
         "data_description": {
           "quota_enabled": "Aktiviert die Stromkontingent-Sensoren",
           "quota_yearly_kwh": "Dein Jahres-Kontingent in kWh (z.B. 4000 kWh)",
           "quota_start_date": "Beginn der Tarifperiode (von Rechnung ablesen, muss nicht 1.1. sein)",
           "quota_start_meter": "Zählerstand Netzbezug am Startdatum (von Rechnung/Zähler ablesen)",
-          "quota_monthly_rate": "Optional: Monatlicher Abschlag in € (nur zur Anzeige)"
+          "quota_monthly_rate": "Optional: Monatlicher Abschlag in € (nur zur Anzeige)",
+          "quota_seasonal": "Berücksichtigt saisonale Verbrauchsmuster (Winter mehr, Sommer weniger) für realistischere Reserve- und Prognose-Werte"
         }
       },
       "save": {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -18,13 +18,14 @@ from .const import (
     CONF_ENERGY_OFFSET_SELF, CONF_ENERGY_OFFSET_EXPORT,
     CONF_FIXED_PRICE, CONF_EPEX_PRICE_ENTITY,
     CONF_QUOTA_ENABLED, CONF_QUOTA_YEARLY_KWH, CONF_QUOTA_START_DATE,
-    CONF_QUOTA_START_METER, CONF_QUOTA_MONTHLY_RATE,
+    CONF_QUOTA_START_METER, CONF_QUOTA_MONTHLY_RATE, CONF_QUOTA_SEASONAL,
     DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
     DEFAULT_FIXED_PRICE, DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT,
     DEFAULT_QUOTA_ENABLED, DEFAULT_QUOTA_YEARLY_KWH,
     DEFAULT_QUOTA_START_METER, DEFAULT_QUOTA_MONTHLY_RATE,
+    DEFAULT_QUOTA_SEASONAL, SEASONAL_FACTORS,
     PRICE_UNIT_CENT,
 )
 
@@ -140,6 +141,7 @@ class PVManagementFixController:
         self.quota_start_date_str = opts.get(CONF_QUOTA_START_DATE)
         self.quota_start_meter = opts.get(CONF_QUOTA_START_METER, DEFAULT_QUOTA_START_METER)
         self.quota_monthly_rate = opts.get(CONF_QUOTA_MONTHLY_RATE, DEFAULT_QUOTA_MONTHLY_RATE)
+        self.quota_seasonal = opts.get(CONF_QUOTA_SEASONAL, DEFAULT_QUOTA_SEASONAL)
 
     @property
     def fixed_price_ct(self) -> float:
@@ -387,11 +389,34 @@ class PVManagementFixController:
             return 0.0
         return min(100.0, (self.quota_consumed_kwh / self.quota_yearly_kwh) * 100)
 
+    def _quota_seasonal_expected(self, from_date: date, to_date: date) -> float:
+        """Berechnet den saisonalen Soll-Verbrauch zwischen zwei Daten."""
+        import calendar
+        total = 0.0
+        current = from_date
+        while current < to_date:
+            month = current.month
+            days_in_month = calendar.monthrange(current.year, month)[1]
+            factor = SEASONAL_FACTORS.get(month, 1.0)
+            daily_value = (factor / 12.0) * self.quota_yearly_kwh / days_in_month
+            total += daily_value
+            current += timedelta(days=1)
+        return total
+
+    def _quota_seasonal_fraction(self, from_date: date, to_date: date) -> float:
+        """Berechnet den saisonalen Anteil der Periode (0.0 - 1.0)."""
+        if self.quota_yearly_kwh <= 0:
+            return 0.0
+        return self._quota_seasonal_expected(from_date, to_date) / self.quota_yearly_kwh
+
     @property
     def quota_expected_kwh(self) -> float:
-        """Soll-Verbrauch bei linearer Verteilung."""
+        """Soll-Verbrauch (saisonal gewichtet oder linear)."""
         if self.quota_days_total <= 0:
             return 0.0
+        start = self.quota_start_date
+        if self.quota_seasonal and start is not None:
+            return self._quota_seasonal_expected(start, date.today())
         return (self.quota_days_elapsed / self.quota_days_total) * self.quota_yearly_kwh
 
     @property
@@ -413,6 +438,12 @@ class PVManagementFixController:
         days_elapsed = self.quota_days_elapsed
         if days_elapsed <= 0:
             return None
+        start = self.quota_start_date
+        if self.quota_seasonal and start is not None:
+            fraction = self._quota_seasonal_fraction(start, date.today())
+            if fraction <= 0:
+                return None
+            return self.quota_consumed_kwh / fraction
         return (self.quota_consumed_kwh / days_elapsed) * self.quota_days_total
 
     @property

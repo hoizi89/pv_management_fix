@@ -49,6 +49,7 @@ CONF_QUOTA_YEARLY_KWH: Final[str] = "quota_yearly_kwh"
 CONF_QUOTA_START_DATE: Final[str] = "quota_start_date"
 CONF_QUOTA_START_METER: Final[str] = "quota_start_meter"
 CONF_QUOTA_MONTHLY_RATE: Final[str] = "quota_monthly_rate"
+CONF_QUOTA_SEASONAL: Final[str] = "quota_seasonal"
 
 # --- Defaults -----------------------------------------------------------------
 DEFAULT_NAME: Final[str] = "PV Fixpreis"
@@ -69,6 +70,24 @@ DEFAULT_QUOTA_ENABLED: Final[bool] = False
 DEFAULT_QUOTA_YEARLY_KWH: Final[float] = 4000.0  # kWh pro Jahr
 DEFAULT_QUOTA_START_METER: Final[float] = 0.0  # Zählerstand bei Start
 DEFAULT_QUOTA_MONTHLY_RATE: Final[float] = 0.0  # €/Monat Abschlag
+DEFAULT_QUOTA_SEASONAL: Final[bool] = True
+
+# Saisonale Gewichtungsfaktoren (deutscher Wohnstrom-Durchschnitt)
+# Normalisiert auf Summe = 12 (Faktor 1.0 = Durchschnitt)
+SEASONAL_FACTORS: Final[dict[int, float]] = {
+    1: 1.20,   # Januar
+    2: 1.15,   # Februar
+    3: 1.05,   # März
+    4: 0.95,   # April
+    5: 0.85,   # Mai
+    6: 0.75,   # Juni
+    7: 0.75,   # Juli
+    8: 0.80,   # August
+    9: 0.90,   # September
+    10: 1.00,  # Oktober
+    11: 1.15,  # November
+    12: 1.45,  # Dezember
+}
 
 # --- Ranges für Config Flow / Options -----------------------------------------
 RANGE_PRICE_EUR: Final[dict] = {"min": 0.01, "max": 1.0, "step": 0.001}

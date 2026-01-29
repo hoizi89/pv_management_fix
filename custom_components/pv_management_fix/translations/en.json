@@ -110,14 +110,16 @@
           "quota_yearly_kwh": "Yearly quota (kWh)",
           "quota_start_date": "Tariff period start date",
           "quota_start_meter": "Grid import meter reading at start date",
-          "quota_monthly_rate": "Monthly payment (EUR)"
+          "quota_monthly_rate": "Monthly payment (EUR)",
+          "quota_seasonal": "Seasonal calculation"
         },
         "data_description": {
           "quota_enabled": "Enables the electricity quota sensors",
           "quota_yearly_kwh": "Your yearly quota in kWh (e.g., 4000 kWh)",
           "quota_start_date": "Start of tariff period (read from invoice, doesn't have to be Jan 1)",
           "quota_start_meter": "Grid import meter reading at start date (read from invoice/meter)",
-          "quota_monthly_rate": "Optional: Monthly payment in EUR (display only)"
+          "quota_monthly_rate": "Optional: Monthly payment in EUR (display only)",
+          "quota_seasonal": "Accounts for seasonal consumption patterns (more in winter, less in summer) for more realistic reserve and forecast values"
         }
       },
       "save": {
