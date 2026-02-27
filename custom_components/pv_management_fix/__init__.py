@@ -135,6 +135,11 @@ class PVManagementFixController:
         self._string_daily_peak_w: dict[str, float] = {}
         self._string_daily_peak_date: date | None = None
 
+        # Monatliche Buckets für Rolling-12-Month (Ring-Buffer)
+        # Key: Monat (1-12), Value: dict mit Energiewerten
+        self._monthly_buckets: dict[int, dict[str, float]] = {}
+        self._monthly_bucket_month: int | None = None
+
         # Listener
         self._remove_listeners = []
         self._entity_listeners = []
@@ -760,8 +765,18 @@ class PVManagementFixController:
     def benchmark_own_annual_consumption_kwh(self) -> float | None:
         """Gesamtverbrauch hochgerechnet auf 1 Jahr (inkl. WP).
 
-        Verwendet Differenz seit Benchmark-Start (unabhängig von Amortisation).
+        Verwendet Rolling-12-Month Buckets wenn 12 Monate vorhanden,
+        sonst Extrapolation seit Benchmark-Start.
         """
+        # Bucket-basiert (12 Monate vorhanden)
+        if len(self._monthly_buckets) >= 12:
+            total = sum(
+                b.get("self_consumption", 0.0) + b.get("grid_import", 0.0)
+                for b in self._monthly_buckets.values()
+            )
+            if 0 < total < 100_000:
+                return total
+        # Fallback: Extrapolation
         if self._benchmark_start_date is None:
             return None
         days = max(1, (date.today() - self._benchmark_start_date).days)
@@ -779,6 +794,11 @@ class PVManagementFixController:
     @property
     def benchmark_annual_grid_import_kwh(self) -> float | None:
         """Jährlicher Netzbezug hochgerechnet (seit Benchmark-Start)."""
+        if len(self._monthly_buckets) >= 12:
+            grid = sum(b.get("grid_import", 0.0) for b in self._monthly_buckets.values())
+            if 0 < grid < 100_000:
+                return grid
+        # Fallback: Extrapolation
         if self._benchmark_start_date is None:
             return None
         days = max(1, (date.today() - self._benchmark_start_date).days)
@@ -795,6 +815,12 @@ class PVManagementFixController:
         """WP-Jahresverbrauch (Delta seit erstem Sehen, hochgerechnet auf 1 Jahr)."""
         if not self.benchmark_heatpump or not self.benchmark_heatpump_entity:
             return None
+        # Bucket-basiert
+        if len(self._monthly_buckets) >= 12:
+            wp_total = sum(b.get("wp", 0.0) for b in self._monthly_buckets.values())
+            if wp_total > 0:
+                return wp_total
+        # Fallback: Extrapolation
         if self._wp_first_seen_date is None or self._tracked_wp_kwh <= 0:
             return None
         wp_days = max(1, (date.today() - self._wp_first_seen_date).days)
@@ -835,6 +861,16 @@ class PVManagementFixController:
     @property
     def benchmark_co2_avoided_kg(self) -> float | None:
         """CO2-Einsparung durch PV pro Jahr (kg)."""
+        co2_factor = BENCHMARK_CO2_FACTORS.get(self.benchmark_country, BENCHMARK_CO2_FACTORS["AT"])
+        # Bucket-basiert
+        if len(self._monthly_buckets) >= 12:
+            annual_pv = sum(
+                b.get("self_consumption", 0.0) + b.get("feed_in", 0.0)
+                for b in self._monthly_buckets.values()
+            )
+            if 0 < annual_pv < 100_000:
+                return annual_pv * co2_factor
+        # Fallback: Extrapolation
         if self._benchmark_start_date is None:
             return None
         days = max(1, (date.today() - self._benchmark_start_date).days)
@@ -848,12 +884,20 @@ class PVManagementFixController:
         annual_pv = daily_pv * 365
         if annual_pv > 100_000:
             return None
-        co2_factor = BENCHMARK_CO2_FACTORS.get(self.benchmark_country, BENCHMARK_CO2_FACTORS["AT"])
         return annual_pv * co2_factor
 
     @property
     def benchmark_annual_pv_production_kwh(self) -> float | None:
         """Hochgerechnete PV-Jahresproduktion (snapshot-basiert)."""
+        # Bucket-basiert
+        if len(self._monthly_buckets) >= 12:
+            pv = sum(
+                b.get("self_consumption", 0.0) + b.get("feed_in", 0.0)
+                for b in self._monthly_buckets.values()
+            )
+            if 0 < pv < 100_000:
+                return pv
+        # Fallback: Extrapolation
         if self._benchmark_start_date is None:
             return None
         days = max(1, (date.today() - self._benchmark_start_date).days)
@@ -1261,6 +1305,29 @@ class PVManagementFixController:
         self._benchmark_start_grid_import = safe_float(data.get("benchmark_start_grid_import"))
         self._benchmark_start_feed_in = safe_float(data.get("benchmark_start_feed_in"))
 
+        # Monthly Buckets wiederherstellen
+        raw_buckets = data.get("monthly_buckets", {})
+        if isinstance(raw_buckets, dict):
+            self._monthly_buckets = {}
+            for k, v in raw_buckets.items():
+                try:
+                    month = int(k)
+                    if 1 <= month <= 12 and isinstance(v, dict):
+                        self._monthly_buckets[month] = {
+                            "self_consumption": safe_float(v.get("self_consumption")),
+                            "grid_import": safe_float(v.get("grid_import")),
+                            "feed_in": safe_float(v.get("feed_in")),
+                            "wp": safe_float(v.get("wp")),
+                        }
+                except (ValueError, TypeError):
+                    pass
+        self._monthly_bucket_month = data.get("monthly_bucket_month")
+        if self._monthly_bucket_month is not None:
+            try:
+                self._monthly_bucket_month = int(self._monthly_bucket_month)
+            except (ValueError, TypeError):
+                self._monthly_bucket_month = None
+
         self._restored = True
         _LOGGER.info(
             "PV Management Fixpreis restored: %.2f kWh self, %.2f kWh feed, %.2f€ savings",
@@ -1352,6 +1419,8 @@ class PVManagementFixController:
             "benchmark_start_self_consumption": self._benchmark_start_self_consumption,
             "benchmark_start_grid_import": self._benchmark_start_grid_import,
             "benchmark_start_feed_in": self._benchmark_start_feed_in,
+            "monthly_buckets": {str(k): v for k, v in self._monthly_buckets.items()},
+            "monthly_bucket_month": self._monthly_bucket_month,
         }
 
     def get_string_production_kwh(self, entity_id: str) -> float:
@@ -1518,6 +1587,22 @@ class PVManagementFixController:
             self._monthly_grid_import_kwh += delta_import
             self._monthly_grid_import_cost += import_cost
 
+        # Monatlicher Bucket (Rolling 12-Month)
+        current_month = today.month
+        if self._monthly_bucket_month != current_month:
+            self._monthly_buckets[current_month] = {
+                "self_consumption": 0.0,
+                "grid_import": 0.0,
+                "feed_in": 0.0,
+                "wp": 0.0,
+            }
+            self._monthly_bucket_month = current_month
+
+        bucket = self._monthly_buckets[current_month]
+        bucket["self_consumption"] += delta_self_consumption
+        bucket["grid_import"] += delta_import
+        bucket["feed_in"] += delta_export
+
         self._last_pv_production_kwh = current_pv
         self._last_grid_export_kwh = current_export
         self._last_grid_import_kwh = current_import
@@ -1568,6 +1653,9 @@ class PVManagementFixController:
                 # Sanity check: max 200 kWh pro Update (verhindert Absolutwert als Delta)
                 if delta < 200:
                     self._tracked_wp_kwh += delta
+                    # WP-Bucket-Update
+                    if self._monthly_bucket_month is not None and self._monthly_bucket_month in self._monthly_buckets:
+                        self._monthly_buckets[self._monthly_bucket_month]["wp"] += delta
             self._last_wp_kwh = value
             self._notify_entities()
 
@@ -1751,6 +1839,9 @@ class PVManagementFixController:
         self._benchmark_start_self_consumption = self._total_self_consumption_kwh
         self._benchmark_start_grid_import = self._tracked_grid_import_kwh
         self._benchmark_start_feed_in = self._total_feed_in_kwh
+        # Monthly Buckets zurücksetzen
+        self._monthly_buckets = {}
+        self._monthly_bucket_month = None
         self._notify_entities()
 
     def reset_pv_strings_tracking(self) -> None:
