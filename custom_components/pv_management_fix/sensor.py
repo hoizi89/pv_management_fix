@@ -147,9 +147,6 @@ async def async_setup_entry(
             BenchmarkScoreSensor(ctrl, name),
             BenchmarkRatingSensor(ctrl, name),
         ])
-        # Monatliche Bucket-Sensoren (Rolling 12-Month)
-        for month in range(1, 13):
-            entities.append(BenchmarkMonthlySensor(ctrl, name, month))
         # Spezifischer Ertrag nur wenn PV-Strings konfiguriert (für Peak-Summe)
         if ctrl.pv_strings:
             entities.append(BenchmarkSpecificYieldSensor(ctrl, name))
@@ -1625,43 +1622,6 @@ MONTH_NAMES_DE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
                   "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
 
 
-class BenchmarkMonthlySensor(BaseEntity):
-    """Zeigt den gespeicherten Monats-Bucket-Wert an."""
-
-    def __init__(self, ctrl, name: str, month: int):
-        self._month = month
-        key = f"Benchmark {MONTH_NAMES_DE[month - 1]}"
-        super().__init__(
-            ctrl, name, key,
-            unit="kWh",
-            icon="mdi:calendar-month",
-            state_class=SensorStateClass.MEASUREMENT,
-            device_class=SensorDeviceClass.ENERGY,
-            device_type=DEVICE_BENCHMARK,
-        )
-
-    @property
-    def native_value(self):
-        bucket = self.ctrl._monthly_buckets.get(self._month)
-        if bucket is None:
-            return None
-        return round(
-            bucket.get("self_consumption", 0.0) + bucket.get("grid_import", 0.0), 1
-        )
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        bucket = self.ctrl._monthly_buckets.get(self._month)
-        if bucket is None:
-            return {}
-        return {
-            "self_consumption_kwh": round(bucket.get("self_consumption", 0.0), 1),
-            "grid_import_kwh": round(bucket.get("grid_import", 0.0), 1),
-            "feed_in_kwh": round(bucket.get("feed_in", 0.0), 1),
-            "wp_kwh": round(bucket.get("wp", 0.0), 1),
-        }
-
-
 class BenchmarkAvgSensor(BaseEntity):
     """Benchmark Durchschnitt — Referenzverbrauch Haushaltsstrom."""
 
@@ -1701,6 +1661,23 @@ class BenchmarkOwnSensor(BaseEntity):
         if val is None:
             return None
         return round(val, 0)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        attrs: dict = {
+            "calculation": "buckets" if len(self.ctrl._monthly_buckets) >= 12 else "extrapolation",
+            "buckets_filled": len(self.ctrl._monthly_buckets),
+        }
+        for m in range(1, 13):
+            name = MONTH_NAMES_DE[m - 1].lower()
+            bucket = self.ctrl._monthly_buckets.get(m)
+            if bucket is not None:
+                attrs[f"{name}_consumption_kwh"] = round(
+                    bucket.get("self_consumption", 0.0) + bucket.get("grid_import", 0.0), 1
+                )
+                attrs[f"{name}_feed_in_kwh"] = round(bucket.get("feed_in", 0.0), 1)
+                attrs[f"{name}_wp_kwh"] = round(bucket.get("wp", 0.0), 1)
+        return attrs
 
 
 class BenchmarkHouseholdSensor(BaseEntity):
