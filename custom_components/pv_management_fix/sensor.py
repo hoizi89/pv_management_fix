@@ -132,6 +132,7 @@ async def async_setup_entry(
             QuotaForecastSensor(ctrl, name),
             QuotaDaysRemainingSensor(ctrl, name),
             QuotaTodayRemainingSensor(ctrl, name),
+            QuotaReserveSensor(ctrl, name),
             QuotaStatusSensor(ctrl, name),
         ])
 
