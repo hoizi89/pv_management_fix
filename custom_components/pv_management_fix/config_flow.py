@@ -205,11 +205,11 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema({
                 vol.Required(CONF_PV_PRODUCTION_ENTITY, default=self._get_val(CONF_PV_PRODUCTION_ENTITY)):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
-                vol.Optional(CONF_GRID_EXPORT_ENTITY, default=self._get_val(CONF_GRID_EXPORT_ENTITY)):
+                self._optional_entity(CONF_GRID_EXPORT_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
-                vol.Optional(CONF_GRID_IMPORT_ENTITY, default=self._get_val(CONF_GRID_IMPORT_ENTITY)):
+                self._optional_entity(CONF_GRID_IMPORT_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
-                vol.Optional(CONF_CONSUMPTION_ENTITY, default=self._get_val(CONF_CONSUMPTION_ENTITY)):
+                self._optional_entity(CONF_CONSUMPTION_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
             })
         )
