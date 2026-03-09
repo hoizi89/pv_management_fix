@@ -1088,8 +1088,8 @@ class DailyFeedInSensor(BaseEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {
-            "menge_kwh": round(self.ctrl.daily_feed_in_kwh, 2),
-            "vergütung_ct": f"{self.ctrl.current_feed_in_tariff * 100:.2f}",
+            "amount_kwh": round(self.ctrl.daily_feed_in_kwh, 2),
+            "tariff_ct": f"{self.ctrl.current_feed_in_tariff * 100:.2f}",
         }
 
 
@@ -1116,8 +1116,8 @@ class DailyGridImportSensor(BaseEntity):
     def extra_state_attributes(self) -> dict:
         avg = self.ctrl.daily_average_price_ct
         return {
-            "verbrauch_kwh": round(self.ctrl.daily_grid_import_kwh, 2),
-            "durchschnitt_ct": round(avg, 2) if avg else None,
+            "consumption_kwh": round(self.ctrl.daily_grid_import_kwh, 2),
+            "average_ct": round(avg, 2) if avg else None,
         }
 
 
@@ -1143,8 +1143,8 @@ class DailyNetElectricityCostSensor(BaseEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {
-            "netzbezug_eur": round(self.ctrl.daily_grid_import_cost, 2),
-            "einspeisung_eur": round(self.ctrl.daily_feed_in_earnings, 2),
+            "import_eur": round(self.ctrl.daily_grid_import_cost, 2),
+            "export_eur": round(self.ctrl.daily_feed_in_earnings, 2),
         }
 
 
@@ -1173,9 +1173,9 @@ class QuotaRemainingSensor(BaseEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {
-            "jahres_kontingent_kwh": self.ctrl.quota_yearly_kwh,
-            "verbraucht_kwh": round(self.ctrl.quota_consumed_kwh, 1),
-            "abschlag_eur": self.ctrl.quota_monthly_rate if self.ctrl.quota_monthly_rate > 0 else None,
+            "yearly_quota_kwh": self.ctrl.quota_yearly_kwh,
+            "consumed_kwh": round(self.ctrl.quota_consumed_kwh, 1),
+            "monthly_rate_eur": self.ctrl.quota_monthly_rate if self.ctrl.quota_monthly_rate > 0 else None,
         }
 
 
@@ -1226,8 +1226,8 @@ class QuotaReserveSensor(BaseEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {
-            "soll_verbrauch_kwh": round(self.ctrl.quota_expected_kwh, 1),
-            "ist_verbrauch_kwh": round(self.ctrl.quota_consumed_kwh, 1),
+            "expected_kwh": round(self.ctrl.quota_expected_kwh, 1),
+            "consumed_kwh": round(self.ctrl.quota_consumed_kwh, 1),
         }
 
 
@@ -1287,15 +1287,15 @@ class QuotaForecastSensor(BaseEntity):
     def extra_state_attributes(self) -> dict:
         forecast = self.ctrl.quota_forecast_kwh
         attrs = {
-            "kontingent_kwh": self.ctrl.quota_yearly_kwh,
+            "quota_kwh": self.ctrl.quota_yearly_kwh,
         }
         if forecast is not None:
             diff = forecast - self.ctrl.quota_yearly_kwh
-            attrs["prognose_differenz_kwh"] = round(diff, 0)
+            attrs["forecast_diff_kwh"] = round(diff, 0)
             if diff > 0:
-                attrs["bewertung"] = f"Expected {diff:.0f} kWh over quota"
+                attrs["evaluation"] = f"Expected {diff:.0f} kWh over quota"
             else:
-                attrs["bewertung"] = f"Expected {abs(diff):.0f} kWh under quota"
+                attrs["evaluation"] = f"Expected {abs(diff):.0f} kWh under quota"
         return attrs
 
 
@@ -1322,10 +1322,10 @@ class QuotaDaysRemainingSensor(BaseEntity):
         start = self.ctrl.quota_start_date
         end = self.ctrl.quota_end_date
         return {
-            "perioden_start": start.isoformat() if start else None,
-            "perioden_ende": end.isoformat() if end else None,
-            "tage_vergangen": self.ctrl.quota_days_elapsed,
-            "tage_gesamt": self.ctrl.quota_days_total,
+            "period_start": start.isoformat() if start else None,
+            "period_end": end.isoformat() if end else None,
+            "days_elapsed": self.ctrl.quota_days_elapsed,
+            "days_total": self.ctrl.quota_days_total,
         }
 
 
@@ -1363,8 +1363,8 @@ class QuotaTodayRemainingSensor(BaseEntity):
     def extra_state_attributes(self) -> dict:
         budget = self.ctrl.quota_daily_budget_kwh
         return {
-            "tagesbudget_kwh": round(budget, 1) if budget is not None else None,
-            "heute_verbraucht_kwh": round(self.ctrl.daily_grid_import_kwh, 1),
+            "daily_budget_kwh": round(budget, 1) if budget is not None else None,
+            "consumed_today_kwh": round(self.ctrl.daily_grid_import_kwh, 1),
         }
 
 
@@ -1394,19 +1394,19 @@ class QuotaStatusSensor(BaseEntity):
     @property
     def extra_state_attributes(self) -> dict:
         attrs = {
-            "verbraucht_kwh": round(self.ctrl.quota_consumed_kwh, 1),
-            "verbleibend_kwh": round(self.ctrl.quota_remaining_kwh, 1),
+            "consumed_kwh": round(self.ctrl.quota_consumed_kwh, 1),
+            "remaining_kwh": round(self.ctrl.quota_remaining_kwh, 1),
             "reserve_kwh": round(self.ctrl.quota_reserve_kwh, 1),
-            "verbrauch_prozent": round(self.ctrl.quota_consumed_percent, 1),
+            "consumed_percent": round(self.ctrl.quota_consumed_percent, 1),
         }
         forecast = self.ctrl.quota_forecast_kwh
         if forecast is not None:
-            attrs["prognose_kwh"] = round(forecast, 0)
+            attrs["forecast_kwh"] = round(forecast, 0)
         budget = self.ctrl.quota_daily_budget_kwh
         if budget is not None:
-            attrs["tagesbudget_kwh"] = round(budget, 1)
+            attrs["daily_budget_kwh"] = round(budget, 1)
         if self.ctrl.quota_monthly_rate > 0:
-            attrs["monatlicher_abschlag_eur"] = self.ctrl.quota_monthly_rate
+            attrs["monthly_payment_eur"] = self.ctrl.quota_monthly_rate
         return attrs
 
 
@@ -1557,7 +1557,7 @@ class BatteryCyclesSensor(BaseEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {
-            "kapazitaet_kwh": self.ctrl.battery_capacity,
+            "capacity_kwh": self.ctrl.battery_capacity,
         }
 
 
@@ -1589,9 +1589,9 @@ class ROISensor(BaseEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {
-            "amortisiert": self.ctrl.is_amortised,
-            "gesamtersparnis_eur": round(self.ctrl.total_savings, 2),
-            "anschaffungskosten_eur": round(self.ctrl.installation_cost, 2),
+            "is_amortised": self.ctrl.is_amortised,
+            "total_savings_eur": round(self.ctrl.total_savings, 2),
+            "installation_cost_eur": round(self.ctrl.installation_cost, 2),
         }
 
 
@@ -1859,10 +1859,10 @@ class BenchmarkScoreSensor(BaseEntity):
         sc_ratio = self.ctrl.self_consumption_ratio
         comparison = self.ctrl.benchmark_consumption_vs_avg
         return {
-            "autarkie_punkte": f"{min(35, autarky * 0.35):.1f}/35" if autarky is not None else "n/a",
-            "spez_ertrag_punkte": f"{min(25, (specific / 900) * 25):.1f}/25" if specific and specific > 0 else "n/a",
-            "eigenverbrauch_punkte": f"{min(20, sc_ratio * 0.2):.1f}/20" if sc_ratio is not None else "n/a",
-            "verbrauch_punkte": f"{max(0, min(20, 10 - comparison * 0.2)):.1f}/20" if comparison is not None else "n/a",
+            "autarky_points": f"{min(35, autarky * 0.35):.1f}/35" if autarky is not None else "n/a",
+            "specific_yield_points": f"{min(25, (specific / 900) * 25):.1f}/25" if specific and specific > 0 else "n/a",
+            "self_consumption_points": f"{min(20, sc_ratio * 0.2):.1f}/20" if sc_ratio is not None else "n/a",
+            "consumption_points": f"{max(0, min(20, 10 - comparison * 0.2)):.1f}/20" if comparison is not None else "n/a",
         }
 
     @property
