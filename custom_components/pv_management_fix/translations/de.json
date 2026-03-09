@@ -102,26 +102,26 @@
           "taxes_levies": "Pro kWh — Elektrizitätsabgabe + EAG-Förderbeiträge (von Rechnung ablesen).",
           "vat_percent": "Umsatzsteuer auf die Gesamtsumme (AT: 20%, DE: 19%).",
           "markup_factor": "Pauschale Alternative: Brutto = Netto × Faktor. Wird nur verwendet wenn Netzentgelt und Steuern auf 0 stehen.",
-          "electricity_price_entity": "Sensor der den aktuellen Strompreis liefert (z.B. dynamischer Tarif). Überschreibt den statischen Wert oben. Einheit (ct/EUR) wird automatisch erkannt.",
+          "electricity_price_entity": "Sensor oder input_number für den aktuellen Strompreis (z.B. dynamischer Tarif oder manueller Wert). Überschreibt den statischen Wert oben. Einheit (ct/EUR) wird automatisch erkannt.",
           "feed_in_tariff_unit": "Einheit für den statischen Fallback-Wert unten",
           "feed_in_tariff": "Statische Einspeisevergütung. Wird nur verwendet wenn KEIN Sensor ausgewählt ist.",
-          "feed_in_tariff_entity": "Sensor der die aktuelle Einspeisevergütung liefert (z.B. OeMAG Marktpreis). Überschreibt den statischen Wert oben. Einheit (ct/EUR) wird automatisch erkannt.",
+          "feed_in_tariff_entity": "Sensor oder input_number für die aktuelle Einspeisevergütung (z.B. OeMAG Marktpreis). Überschreibt den statischen Wert oben. Einheit (ct/EUR) wird automatisch erkannt.",
           "installation_cost": "Gesamtkosten der PV-Anlage (für Amortisationsrechnung)",
           "installation_date": "Für Statistiken und Prognosen"
         }
       },
       "offsets": {
         "title": "Historische Daten",
-        "description": "Falls du bereits vor dem Tracking Daten hast.",
+        "description": "Nur nötig wenn deine PV-Anlage schon VOR dieser Integration lief. Bei Neuinstallation alles auf 0 lassen.",
         "data": {
-          "savings_offset": "Bereits amortisierter Betrag",
-          "energy_offset_self_consumption": "Eigenverbrauch vor Tracking (kWh)",
-          "energy_offset_export": "Einspeisung vor Tracking (kWh)"
+          "savings_offset": "Bereits amortisierter Betrag (€)",
+          "energy_offset_self_consumption": "Selbst verbrauchte PV-Energie vor Tracking (kWh)",
+          "energy_offset_export": "Ins Netz eingespeiste Energie vor Tracking (kWh)"
         },
         "data_description": {
-          "savings_offset": "Falls du bereits einen Betrag amortisiert hast (z.B. aus vorherigem Tracking)",
-          "energy_offset_self_consumption": "Eigenverbrauch-kWh die vor diesem Tracking angefallen sind",
-          "energy_offset_export": "Einspeise-kWh die vor diesem Tracking angefallen sind"
+          "savings_offset": "Wieviel € hat sich die PV-Anlage bereits 'zurückverdient'? Z.B. aus vorherigem Tracking oder eigener Berechnung. Die Ersparnis wird zum aktuellen Strompreis berechnet.",
+          "energy_offset_self_consumption": "PV-Strom den du selbst verbraucht hast, bevor diese Integration gestartet wurde. Findest du z.B. im Energy Dashboard (Eigenverbrauch = PV Produktion minus Einspeisung).",
+          "energy_offset_export": "PV-Strom den du ins Netz eingespeist hast, bevor diese Integration gestartet wurde. Findest du z.B. am Einspeisezähler oder im Energy Dashboard."
         }
       },
       "quota": {

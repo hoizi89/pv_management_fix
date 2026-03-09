@@ -132,7 +132,7 @@ class PVManagementFixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 # === DYNAMISCHER STROMPREIS (optional) ===
                 vol.Optional(CONF_ELECTRICITY_PRICE_ENTITY): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
+                    selector.EntitySelectorConfig(domain=["sensor", "input_number"])
                 ),
 
                 # === EINSPEISEVERGÜTUNG ===
@@ -320,7 +320,7 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
 
                 # Dynamischer Strompreis (optional)
                 self._optional_entity(CONF_ELECTRICITY_PRICE_ENTITY):
-                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain=["sensor", "input_number"])),
 
                 # Einspeisevergütung
                 vol.Required(CONF_FEED_IN_TARIFF_UNIT, default=self._get_val(CONF_FEED_IN_TARIFF_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT)):
@@ -338,7 +338,7 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                         selector.NumberSelectorConfig(min=0.0, max=50.0, step=0.001, mode=selector.NumberSelectorMode.BOX)
                     ),
                 self._optional_entity(CONF_FEED_IN_TARIFF_ENTITY):
-                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain=["sensor", "input_number"])),
 
                 # Amortisation
                 vol.Required(CONF_INSTALLATION_COST, default=self._get_val(CONF_INSTALLATION_COST, DEFAULT_INSTALLATION_COST)):

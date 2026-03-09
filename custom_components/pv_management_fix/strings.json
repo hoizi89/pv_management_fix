@@ -112,16 +112,16 @@
       },
       "offsets": {
         "title": "Historische Daten",
-        "description": "Falls du bereits vor dem Tracking Daten hast.",
+        "description": "Nur noetig wenn deine PV-Anlage schon VOR dieser Integration lief. Bei Neuinstallation alles auf 0 lassen.",
         "data": {
-          "savings_offset": "Bereits amortisierter Betrag",
-          "energy_offset_self_consumption": "Eigenverbrauch vor Tracking (kWh)",
-          "energy_offset_export": "Einspeisung vor Tracking (kWh)"
+          "savings_offset": "Bereits amortisierter Betrag (EUR)",
+          "energy_offset_self_consumption": "Selbst verbrauchte PV-Energie vor Tracking (kWh)",
+          "energy_offset_export": "Ins Netz eingespeiste Energie vor Tracking (kWh)"
         },
         "data_description": {
-          "savings_offset": "Falls du bereits einen Betrag amortisiert hast (z.B. aus vorherigem Tracking)",
-          "energy_offset_self_consumption": "Eigenverbrauch-kWh die vor diesem Tracking angefallen sind",
-          "energy_offset_export": "Einspeise-kWh die vor diesem Tracking angefallen sind"
+          "savings_offset": "Wieviel EUR hat sich die PV-Anlage bereits 'zurueckverdient'? Z.B. aus vorherigem Tracking. Ersparnis wird zum aktuellen Strompreis berechnet.",
+          "energy_offset_self_consumption": "PV-Strom den du selbst verbraucht hast, bevor diese Integration gestartet wurde. Z.B. aus Energy Dashboard (Eigenverbrauch = PV Produktion minus Einspeisung).",
+          "energy_offset_export": "PV-Strom den du ins Netz eingespeist hast, bevor diese Integration gestartet wurde. Z.B. am Einspeisezaehler oder Energy Dashboard."
         }
       },
       "quota": {

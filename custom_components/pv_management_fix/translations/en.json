@@ -102,26 +102,26 @@
           "taxes_levies": "Per kWh — Electricity tax + renewable levies (from bill).",
           "vat_percent": "VAT on the total sum (AT: 20%, DE: 19%).",
           "markup_factor": "Only when grid fee + taxes are 0! Gross = Net × Factor (e.g. 2.0 turns 10ct into 20ct).",
-          "electricity_price_entity": "Sensor providing current electricity price (e.g. dynamic tariff). Overrides the static value above. Unit (ct/EUR) auto-detected.",
+          "electricity_price_entity": "Sensor or input_number for current electricity price (e.g. dynamic tariff or manual value). Overrides the static value above. Unit (ct/EUR) auto-detected.",
           "feed_in_tariff_unit": "Unit for the static fallback value below",
           "feed_in_tariff": "Static feed-in tariff. Only used when NO sensor is selected.",
-          "feed_in_tariff_entity": "Sensor providing current feed-in tariff (e.g. market price). Overrides the static value above. Unit (ct/EUR) auto-detected.",
+          "feed_in_tariff_entity": "Sensor or input_number for current feed-in tariff (e.g. market price). Overrides the static value above. Unit (ct/EUR) auto-detected.",
           "installation_cost": "Total cost of PV system (for amortization calculation)",
           "installation_date": "For statistics and forecasts"
         }
       },
       "offsets": {
         "title": "Historical Data",
-        "description": "If you have data from before tracking started.",
+        "description": "Only needed if your PV system was running BEFORE this integration. Leave at 0 for new installations.",
         "data": {
-          "savings_offset": "Already Amortized Amount",
-          "energy_offset_self_consumption": "Self Consumption before Tracking (kWh)",
-          "energy_offset_export": "Export before Tracking (kWh)"
+          "savings_offset": "Already amortized amount (EUR)",
+          "energy_offset_self_consumption": "Self-consumed PV energy before tracking (kWh)",
+          "energy_offset_export": "Grid export before tracking (kWh)"
         },
         "data_description": {
-          "savings_offset": "If you already have an amortized amount (e.g., from previous tracking)",
-          "energy_offset_self_consumption": "Self consumption kWh that occurred before this tracking",
-          "energy_offset_export": "Export kWh that occurred before this tracking"
+          "savings_offset": "How much has the PV system already 'earned back'? E.g. from previous tracking or your own calculation. Savings are calculated at the current electricity price.",
+          "energy_offset_self_consumption": "PV energy you consumed yourself before this integration started. Find in Energy Dashboard (self consumption = PV production minus export).",
+          "energy_offset_export": "PV energy exported to the grid before this integration started. Find on your export meter or Energy Dashboard."
         }
       },
       "quota": {
