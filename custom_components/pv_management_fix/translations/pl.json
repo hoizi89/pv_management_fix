@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Skonfiguruj PV Energy Management+",
-        "description": "Zarządzanie fotowoltaiką dla taryf ze stałą ceną. Oblicza amortyzację, benchmarki i porównuje wydajność.",
+        "description": "Tutaj tylko podstawowa konfiguracja. Po instalacji przejdź do Ustawienia → Urządzenia → PV Energy Management+ aby skonfigurować: Baterię, Benchmark energetyczny, Stringi PV, Kontyngent prądu i więcej.",
         "data": {
           "name": "Nazwa instalacji",
           "pv_production_entity": "Sensor Produkcji PV (kWh)",
@@ -19,7 +19,9 @@
           "feed_in_tariff_unit": "Jednostka stawki eksportu",
           "feed_in_tariff": "Stawka odkupu (eksport)",
           "installation_cost": "Koszt instalacji PV",
-          "installation_date": "Data instalacji (opcjonalnie)"
+          "installation_date": "Data instalacji (opcjonalnie)",
+          "amortisation_helper": "Helper amortyzacji (input_number)",
+          "restore_from_helper": "Przywrócić wartości z helpera?"
         },
         "data_description": {
           "name": "Nazwa dla tej instalacji PV",
@@ -36,7 +38,9 @@
           "feed_in_tariff_unit": "Wybierz, czy stawka sprzedaży jest w złotych czy groszach za kWh",
           "feed_in_tariff": "Twoja stawka sprzedaży nadwyżek energii",
           "installation_cost": "Całkowity koszt instalacji fotowoltaicznej w PLN",
-          "installation_date": "Data montażu, ważna do statystyk amortyzacji"
+          "installation_date": "Data montażu, ważna do statystyk amortyzacji",
+          "amortisation_helper": "Opcjonalne, ale zalecane! Utwórz helper input_number (Ustawienia → Urządzenia → Helpery → Liczba, Min: 0, Max: 999999). Helper zabezpiecza oszczędności niezależnie — dane przetrwają aktualizacje i reinstalacje. Bez helpera wszystko działa, ale oszczędności po reinstalacji zaczynają się od 0.",
+          "restore_from_helper": "Przy następnym restarcie przywróć oszczędności z helpera. Przydatne gdy reinstalowałeś integrację, a helper nadal ma starą wartość."
         }
       }
     },
@@ -51,7 +55,7 @@
     "step": {
       "init": {
         "title": "Ustawienia PV Energy Management+",
-        "description": "Wybierz kategorię do edycji.",
+        "description": "Tutaj znajdziesz wszystkie funkcje. Wskazówka: Włącz Baterię, Benchmark i Stringi PV aby uzyskać pełną funkcjonalność!",
         "menu_options": {
           "sensors": "Sensory Energii",
           "prices": "Ceny Prądu i Amortyzacja",

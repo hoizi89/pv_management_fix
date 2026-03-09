@@ -165,8 +165,8 @@ class PVManagementFixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                 vol.Optional(CONF_INSTALLATION_DATE): selector.DateSelector(),
 
-                # === AMORTISATION HELPER (Pflicht für Persistenz) ===
-                vol.Required(CONF_AMORTISATION_HELPER): selector.EntitySelector(
+                # === AMORTISATION HELPER (optional, empfohlen für Persistenz) ===
+                vol.Optional(CONF_AMORTISATION_HELPER): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="input_number")
                 ),
                 vol.Optional(CONF_RESTORE_FROM_HELPER, default=False): selector.BooleanSelector(),

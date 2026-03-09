@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Setup PV Energy Management+",
-        "description": "PV management for fixed-price tariffs. Calculates amortization, energy benchmark and optionally compares with spot prices.",
+        "description": "Basic setup only. After installation, go to Settings → Devices → PV Energy Management+ for more features: Battery tracking, Energy benchmark, PV strings, Electricity quota and more.",
         "data": {
           "name": "Name",
           "pv_production_entity": "PV Production Sensor (kWh)",
@@ -19,7 +19,9 @@
           "feed_in_tariff_unit": "Feed-in Tariff Unit",
           "feed_in_tariff": "Feed-in Tariff",
           "installation_cost": "Installation Cost",
-          "installation_date": "Installation Date (optional)"
+          "installation_date": "Installation Date (optional)",
+          "amortisation_helper": "Amortization Helper (input_number)",
+          "restore_from_helper": "Restore values from helper?"
         },
         "data_description": {
           "name": "Name for this PV system",
@@ -36,7 +38,9 @@
           "feed_in_tariff_unit": "Choose if feed-in tariff is in Euro or Cent per kWh",
           "feed_in_tariff": "Feed-in tariff from grid operator",
           "installation_cost": "Total cost of PV system including installation",
-          "installation_date": "Date of installation for accurate statistics"
+          "installation_date": "Date of installation for accurate statistics",
+          "amortisation_helper": "Optional but recommended! Create an input_number helper (Settings → Devices → Helpers → Number, Min: 0, Max: 999999). The helper backs up total savings independently — so data survives updates or reinstalls. Without helper everything works, but savings reset to 0 after reinstall.",
+          "restore_from_helper": "On next restart, restore savings from the helper value. Useful if you reinstall the integration but the helper still has the old value."
         }
       }
     },
@@ -51,7 +55,7 @@
     "step": {
       "init": {
         "title": "PV Energy Management+ Settings",
-        "description": "Choose a category to configure.",
+        "description": "All features are here. Tip: Enable Battery, Benchmark and PV Strings for the full experience!",
         "menu_options": {
           "sensors": "Sensors",
           "prices": "Electricity Prices & Amortization",
