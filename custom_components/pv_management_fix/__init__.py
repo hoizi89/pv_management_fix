@@ -1804,6 +1804,10 @@ class PVManagementFixController:
             if not self._restored and self._total_self_consumption_kwh == 0:
                 _LOGGER.info("Keine restored Daten, initialisiere von Sensoren")
                 self._initialize_from_sensors()
+            # Always mark as restored so sensors become available
+            if not self._restored:
+                self._restored = True
+                self._notify_entities()
 
         from homeassistant.helpers.event import async_call_later
         async_call_later(self.hass, 60.0, delayed_init_check)
