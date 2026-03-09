@@ -11,7 +11,10 @@
           "grid_import_entity": "Netzbezug Sensor (kWh, optional)",
           "consumption_entity": "Hausverbrauch Sensor (kWh, optional)",
           "fixed_price": "Arbeitspreis netto (ct/kWh)",
-          "markup_factor": "Aufschlagfaktor",
+          "grid_fee": "⬇ Aufschlüsselung: Netzentgelt (ct/kWh)",
+          "taxes_levies": "⬇ Aufschlüsselung: Steuern & Abgaben (ct/kWh)",
+          "vat_percent": "⬇ Aufschlüsselung: Mehrwertsteuer (%)",
+          "markup_factor": "⬇ ODER Pauschal: Aufschlagfaktor",
           "electricity_price_entity": "Dynamischer Strompreis Sensor (optional)",
           "feed_in_tariff_unit": "Einspeisevergütung-Einheit",
           "feed_in_tariff": "Einspeisevergütung",
@@ -24,8 +27,11 @@
           "grid_export_entity": "Sensor für Netzeinspeisung in kWh (für Einnahmenberechnung)",
           "grid_import_entity": "Sensor für Netzbezug in kWh (für Spot-Vergleich)",
           "consumption_entity": "Sensor für Gesamtverbrauch des Haushalts in kWh",
-          "fixed_price": "Arbeitspreis netto vom Anbieter (z.B. 10.92 ct/kWh für Grünwelt classic)",
-          "markup_factor": "Faktor für Netz, Steuern, MwSt (Standard: 2.0). Brutto = Netto × Faktor",
+          "fixed_price": "Arbeitspreis netto vom Anbieter (z.B. 12.55 ct/kWh). Steht auf der Rechnung unter 'Energieentgelte'.",
+          "grid_fee": "Pro kWh — Netznutzung + Netzverlustentgelt von der Rechnung (z.B. 6.78 ct/kWh). Bei 0 wird stattdessen der Aufschlagfaktor verwendet.",
+          "taxes_levies": "Pro kWh — Elektrizitätsabgabe + EAG-Förderbeiträge (z.B. 2.43 ct/kWh). Steht auf der Rechnung unter 'Steuern und Abgaben'.",
+          "vat_percent": "Umsatzsteuer auf die Gesamtsumme (AT: 20%, DE: 19%). Steht ganz unten auf der Rechnung.",
+          "markup_factor": "Pauschale Alternative: Brutto = Netto × Faktor (z.B. 2.0 macht 10ct zu 20ct). Wird nur verwendet wenn Netzentgelt und Steuern auf 0 stehen.",
           "electricity_price_entity": "Optional: Sensor für dynamischen Strompreis (überschreibt den statischen Arbeitspreis)",
           "feed_in_tariff_unit": "Wähle ob die Einspeisevergütung in Euro oder Cent pro kWh angegeben wird",
           "feed_in_tariff": "Einspeisevergütung vom Netzbetreiber",
@@ -54,7 +60,8 @@
           "quota": "Stromkontingent",
           "battery": "Batterie",
           "benchmark": "Energie-Benchmark",
-          "pv_strings": "PV-Strings"
+          "pv_strings": "PV-Strings",
+          "reset": "Zurücksetzen"
         }
       },
       "sensors": {
@@ -75,10 +82,13 @@
       },
       "prices": {
         "title": "Strompreise & Amortisation",
-        "description": "Strompreis = was du für Netzbezug zahlst. Einspeisevergütung = was du für Einspeisung bekommst. Beide können optional per Sensor dynamisch sein.",
+        "description": "Zwei Methoden: Aufschlüsselung (pro kWh von Rechnung) ODER Pauschal (Aufschlagfaktor). Aufschlüsselung hat Vorrang wenn Netzentgelt oder Steuern > 0.",
         "data": {
           "fixed_price": "Strompreis netto (ct/kWh) — Fallback",
-          "markup_factor": "Aufschlagfaktor (Netz + Steuern + MwSt)",
+          "grid_fee": "⬇ Aufschlüsselung: Netzentgelt (ct/kWh)",
+          "taxes_levies": "⬇ Aufschlüsselung: Steuern & Abgaben (ct/kWh)",
+          "vat_percent": "⬇ Aufschlüsselung: Mehrwertsteuer (%)",
+          "markup_factor": "⬇ ODER Pauschal: Aufschlagfaktor",
           "electricity_price_entity": "Strompreis per Sensor (optional)",
           "feed_in_tariff_unit": "Einspeisevergütung-Einheit",
           "feed_in_tariff": "Einspeisevergütung — Fallback",
@@ -88,7 +98,10 @@
         },
         "data_description": {
           "fixed_price": "Statischer Arbeitspreis netto. Wird nur verwendet wenn KEIN Sensor ausgewählt ist.",
-          "markup_factor": "Brutto = Netto × Faktor. Bei 2.0 wird z.B. 10ct netto zu 20ct brutto.",
+          "grid_fee": "Pro kWh — Netznutzung + Netzverlustentgelt (von Rechnung ablesen). Brutto = (Arbeitspreis + Netzentgelt + Steuern) × (1 + MwSt%)",
+          "taxes_levies": "Pro kWh — Elektrizitätsabgabe + EAG-Förderbeiträge (von Rechnung ablesen).",
+          "vat_percent": "Umsatzsteuer auf die Gesamtsumme (AT: 20%, DE: 19%).",
+          "markup_factor": "Pauschale Alternative: Brutto = Netto × Faktor. Wird nur verwendet wenn Netzentgelt und Steuern auf 0 stehen.",
           "electricity_price_entity": "Sensor der den aktuellen Strompreis liefert (z.B. dynamischer Tarif). Überschreibt den statischen Wert oben. Einheit (ct/EUR) wird automatisch erkannt.",
           "feed_in_tariff_unit": "Einheit für den statischen Fallback-Wert unten",
           "feed_in_tariff": "Statische Einspeisevergütung. Wird nur verwendet wenn KEIN Sensor ausgewählt ist.",

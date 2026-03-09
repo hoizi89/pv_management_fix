@@ -930,6 +930,19 @@ class FixedPriceSensor(BaseEntity):
     def native_value(self) -> float:
         return round(self.ctrl.fixed_price_ct, 2)
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        attrs = {
+            "gross_price_ct": round(self.ctrl.gross_price_ct, 2),
+        }
+        if self.ctrl.has_itemized_costs:
+            attrs["grid_fee_ct"] = round(self.ctrl.grid_fee * 100, 2)
+            attrs["taxes_levies_ct"] = round(self.ctrl.taxes_levies * 100, 2)
+            attrs["vat_percent"] = self.ctrl.vat_percent
+        else:
+            attrs["markup_factor"] = self.ctrl.markup_factor
+        return attrs
+
 
 class GrossPriceSensor(BaseEntity):
     """Gross electricity price for Energy Dashboard (EUR/kWh)."""
@@ -939,7 +952,7 @@ class GrossPriceSensor(BaseEntity):
             ctrl,
             name,
             "Preis Brutto",
-            unit="EUR/kWh",
+            unit="€/kWh",
             icon="mdi:currency-eur",
             state_class=SensorStateClass.MEASUREMENT,
             device_type=DEVICE_PRICES,
@@ -948,6 +961,22 @@ class GrossPriceSensor(BaseEntity):
     @property
     def native_value(self) -> float:
         return round(self.ctrl.gross_price, 4)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        attrs = {
+            "net_price_ct": round(self.ctrl.fixed_price_ct, 2),
+            "gross_price_ct": round(self.ctrl.gross_price_ct, 2),
+        }
+        if self.ctrl.has_itemized_costs:
+            attrs["grid_fee_ct"] = round(self.ctrl.grid_fee * 100, 2)
+            attrs["taxes_levies_ct"] = round(self.ctrl.taxes_levies * 100, 2)
+            attrs["vat_percent"] = self.ctrl.vat_percent
+            net_total = self.ctrl.current_electricity_price + self.ctrl.grid_fee + self.ctrl.taxes_levies
+            attrs["net_total_ct"] = round(net_total * 100, 2)
+        else:
+            attrs["markup_factor"] = self.ctrl.markup_factor
+        return attrs
 
 
 class CurrentFeedInTariffSensor(BaseEntity):

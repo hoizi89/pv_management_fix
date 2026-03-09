@@ -14,6 +14,7 @@ from .const import (
     CONF_FEED_IN_TARIFF, CONF_FEED_IN_TARIFF_ENTITY, CONF_FEED_IN_TARIFF_UNIT,
     CONF_INSTALLATION_COST, CONF_INSTALLATION_DATE,
     CONF_SAVINGS_OFFSET, CONF_FIXED_PRICE, CONF_MARKUP_FACTOR,
+    CONF_GRID_FEE, CONF_TAXES_LEVIES, CONF_VAT_PERCENT,
     CONF_ENERGY_OFFSET_SELF, CONF_ENERGY_OFFSET_EXPORT,
     CONF_AMORTISATION_HELPER, CONF_RESTORE_FROM_HELPER,
     CONF_QUOTA_ENABLED, CONF_QUOTA_YEARLY_KWH, CONF_QUOTA_START_DATE,
@@ -27,11 +28,13 @@ from .const import (
     RANGE_BATTERY_CAPACITY, RANGE_HOUSEHOLD_SIZE,
     DEFAULT_NAME, DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET, DEFAULT_FIXED_PRICE, DEFAULT_MARKUP_FACTOR,
+    DEFAULT_GRID_FEE, DEFAULT_TAXES_LEVIES, DEFAULT_VAT_PERCENT,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
     DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT,
     DEFAULT_QUOTA_ENABLED, DEFAULT_QUOTA_YEARLY_KWH,
     DEFAULT_QUOTA_START_METER, DEFAULT_QUOTA_MONTHLY_RATE,
     RANGE_COST, RANGE_OFFSET, RANGE_ENERGY_OFFSET, RANGE_MARKUP_FACTOR,
+    RANGE_GRID_FEE, RANGE_TAXES_LEVIES, RANGE_VAT_PERCENT,
     RANGE_QUOTA_KWH, RANGE_QUOTA_METER, RANGE_QUOTA_RATE,
     PRICE_UNIT_EUR, PRICE_UNIT_CENT,
     CONF_PV_STRING_1_NAME, CONF_PV_STRING_1_ENTITY,
@@ -84,8 +87,40 @@ class PVManagementFixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         )
                     ),
 
-                # === AUFSCHLAGFAKTOR (Netz + Steuern + MwSt) ===
-                vol.Required(CONF_MARKUP_FACTOR, default=DEFAULT_MARKUP_FACTOR):
+                # === KOSTENAUFSCHLÜSSELUNG (pro kWh, von Rechnung ablesen) ===
+                vol.Optional(CONF_GRID_FEE, default=DEFAULT_GRID_FEE):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=RANGE_GRID_FEE["min"],
+                            max=RANGE_GRID_FEE["max"],
+                            step=RANGE_GRID_FEE["step"],
+                            unit_of_measurement="ct/kWh",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                vol.Optional(CONF_TAXES_LEVIES, default=DEFAULT_TAXES_LEVIES):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=RANGE_TAXES_LEVIES["min"],
+                            max=RANGE_TAXES_LEVIES["max"],
+                            step=RANGE_TAXES_LEVIES["step"],
+                            unit_of_measurement="ct/kWh",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                vol.Optional(CONF_VAT_PERCENT, default=DEFAULT_VAT_PERCENT):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=RANGE_VAT_PERCENT["min"],
+                            max=RANGE_VAT_PERCENT["max"],
+                            step=RANGE_VAT_PERCENT["step"],
+                            unit_of_measurement="%",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+
+                # === ALTERNATIVE: Pauschaler Aufschlagfaktor ===
+                vol.Optional(CONF_MARKUP_FACTOR, default=DEFAULT_MARKUP_FACTOR):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=RANGE_MARKUP_FACTOR["min"],
@@ -240,14 +275,46 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                         )
                     ),
 
-                # Aufschlagfaktor (Netz + Steuern + MwSt)
-                vol.Required(CONF_MARKUP_FACTOR, default=self._get_val(CONF_MARKUP_FACTOR, DEFAULT_MARKUP_FACTOR)):
+                # Kostenaufschlüsselung (Netzentgelt + Steuern/Abgaben + MwSt)
+                vol.Optional(CONF_GRID_FEE, default=self._get_val(CONF_GRID_FEE, DEFAULT_GRID_FEE)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=RANGE_GRID_FEE["min"],
+                            max=RANGE_GRID_FEE["max"],
+                            step=RANGE_GRID_FEE["step"],
+                            unit_of_measurement="ct/kWh",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                vol.Optional(CONF_TAXES_LEVIES, default=self._get_val(CONF_TAXES_LEVIES, DEFAULT_TAXES_LEVIES)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=RANGE_TAXES_LEVIES["min"],
+                            max=RANGE_TAXES_LEVIES["max"],
+                            step=RANGE_TAXES_LEVIES["step"],
+                            unit_of_measurement="ct/kWh",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                vol.Optional(CONF_VAT_PERCENT, default=self._get_val(CONF_VAT_PERCENT, DEFAULT_VAT_PERCENT)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=RANGE_VAT_PERCENT["min"],
+                            max=RANGE_VAT_PERCENT["max"],
+                            step=RANGE_VAT_PERCENT["step"],
+                            unit_of_measurement="%",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+
+                # Alternative: Pauschaler Aufschlagfaktor
+                vol.Optional(CONF_MARKUP_FACTOR, default=self._get_val(CONF_MARKUP_FACTOR, DEFAULT_MARKUP_FACTOR)):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=RANGE_MARKUP_FACTOR["min"],
                             max=RANGE_MARKUP_FACTOR["max"],
                             step=RANGE_MARKUP_FACTOR["step"],
-                            mode=selector.NumberSelectorMode.BOX
+                            mode=selector.NumberSelectorMode.BOX,
                         )
                     ),
 

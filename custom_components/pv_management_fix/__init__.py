@@ -16,7 +16,7 @@ from .const import (
     CONF_FEED_IN_TARIFF, CONF_FEED_IN_TARIFF_ENTITY, CONF_FEED_IN_TARIFF_UNIT,
     CONF_INSTALLATION_COST, CONF_INSTALLATION_DATE, CONF_SAVINGS_OFFSET,
     CONF_ENERGY_OFFSET_SELF, CONF_ENERGY_OFFSET_EXPORT,
-    CONF_FIXED_PRICE, CONF_MARKUP_FACTOR,
+    CONF_FIXED_PRICE, CONF_MARKUP_FACTOR, CONF_GRID_FEE, CONF_TAXES_LEVIES, CONF_VAT_PERCENT,
     CONF_AMORTISATION_HELPER, CONF_RESTORE_FROM_HELPER,
     CONF_QUOTA_ENABLED, CONF_QUOTA_YEARLY_KWH, CONF_QUOTA_START_DATE,
     CONF_QUOTA_START_METER, CONF_QUOTA_MONTHLY_RATE,
@@ -30,7 +30,8 @@ from .const import (
     DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
-    DEFAULT_FIXED_PRICE, DEFAULT_MARKUP_FACTOR, DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT,
+    DEFAULT_FIXED_PRICE, DEFAULT_MARKUP_FACTOR, DEFAULT_GRID_FEE, DEFAULT_TAXES_LEVIES, DEFAULT_VAT_PERCENT,
+    DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT,
     DEFAULT_QUOTA_ENABLED, DEFAULT_QUOTA_YEARLY_KWH,
     DEFAULT_QUOTA_START_METER, DEFAULT_QUOTA_MONTHLY_RATE,
     PRICE_UNIT_CENT,
@@ -171,9 +172,12 @@ class PVManagementFixController:
         self.energy_offset_self = opts.get(CONF_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_SELF)
         self.energy_offset_export = opts.get(CONF_ENERGY_OFFSET_EXPORT, DEFAULT_ENERGY_OFFSET_EXPORT)
 
-        # Fixpreis (ct/kWh → €/kWh) und Aufschlagfaktor
+        # Fixed price (ct/kWh → €/kWh) and cost breakdown
         self.fixed_price = opts.get(CONF_FIXED_PRICE, DEFAULT_FIXED_PRICE) / 100.0
         self.markup_factor = opts.get(CONF_MARKUP_FACTOR, DEFAULT_MARKUP_FACTOR)
+        self.grid_fee = opts.get(CONF_GRID_FEE, DEFAULT_GRID_FEE) / 100.0  # ct → €
+        self.taxes_levies = opts.get(CONF_TAXES_LEVIES, DEFAULT_TAXES_LEVIES) / 100.0  # ct → €
+        self.vat_percent = opts.get(CONF_VAT_PERCENT, DEFAULT_VAT_PERCENT)
 
         # Stromkontingent
         self.quota_enabled = opts.get(CONF_QUOTA_ENABLED, DEFAULT_QUOTA_ENABLED)
@@ -222,13 +226,21 @@ class PVManagementFixController:
         return self.fixed_price * 100
 
     @property
+    def has_itemized_costs(self) -> bool:
+        """True if grid fee or taxes are configured (new system)."""
+        return self.grid_fee > 0 or self.taxes_levies > 0
+
+    @property
     def gross_price(self) -> float:
-        """Brutto-Strompreis in €/kWh (netto × Aufschlagfaktor)."""
+        """Gross electricity price in €/kWh."""
+        if self.has_itemized_costs:
+            net_total = self.current_electricity_price + self.grid_fee + self.taxes_levies
+            return net_total * (1 + self.vat_percent / 100)
         return self.current_electricity_price * self.markup_factor
 
     @property
     def gross_price_ct(self) -> float:
-        """Brutto-Strompreis in ct/kWh."""
+        """Gross electricity price in ct/kWh."""
         return self.gross_price * 100
 
     def _convert_price_to_eur(self, price: float, unit: str, auto_detect: bool = False) -> float:

@@ -39,7 +39,10 @@ CONF_INSTALLATION_DATE: Final[str] = "installation_date"
 
 # --- Fixed price (main feature of this integration) --------------------------
 CONF_FIXED_PRICE: Final[str] = "fixed_price"  # Fixed price in ct/kWh (net energy price)
-CONF_MARKUP_FACTOR: Final[str] = "markup_factor"  # Markup factor for grid fees + taxes + VAT
+CONF_MARKUP_FACTOR: Final[str] = "markup_factor"  # Legacy: markup factor (kept for backwards compat)
+CONF_GRID_FEE: Final[str] = "grid_fee"  # Grid fees (Netzentgelt) in ct/kWh
+CONF_TAXES_LEVIES: Final[str] = "taxes_levies"  # Taxes & levies (Steuern & Abgaben) in ct/kWh
+CONF_VAT_PERCENT: Final[str] = "vat_percent"  # VAT (MwSt) in percent
 
 # --- Amortisation Helper Sync -------------------------------------------------
 CONF_AMORTISATION_HELPER: Final[str] = "amortisation_helper"
@@ -73,7 +76,10 @@ DEFAULT_ENERGY_OFFSET_EXPORT: Final[float] = 0.0  # kWh export before tracking
 
 # Fixed price default (Grünwelt classic net energy price)
 DEFAULT_FIXED_PRICE: Final[float] = 10.92  # ct/kWh net
-DEFAULT_MARKUP_FACTOR: Final[float] = 2.0  # Factor for grid fees + taxes + VAT (10ct -> 20ct gross)
+DEFAULT_MARKUP_FACTOR: Final[float] = 2.0  # Legacy factor (kept for backwards compat)
+DEFAULT_GRID_FEE: Final[float] = 0.0  # ct/kWh grid fees
+DEFAULT_TAXES_LEVIES: Final[float] = 0.0  # ct/kWh taxes & levies
+DEFAULT_VAT_PERCENT: Final[float] = 20.0  # % VAT (Austria default)
 
 # Electricity quota defaults
 DEFAULT_QUOTA_ENABLED: Final[bool] = False
@@ -108,6 +114,9 @@ RANGE_COST: Final[dict] = {"min": 0.0, "max": 200000.0, "step": 1.0}
 RANGE_OFFSET: Final[dict] = {"min": 0.0, "max": 100000.0, "step": 0.01}
 RANGE_ENERGY_OFFSET: Final[dict] = {"min": 0.0, "max": 500000.0, "step": 0.01}
 RANGE_MARKUP_FACTOR: Final[dict] = {"min": 1.0, "max": 5.0, "step": 0.1}
+RANGE_GRID_FEE: Final[dict] = {"min": 0.0, "max": 30.0, "step": 0.01}
+RANGE_TAXES_LEVIES: Final[dict] = {"min": 0.0, "max": 30.0, "step": 0.01}
+RANGE_VAT_PERCENT: Final[dict] = {"min": 0.0, "max": 30.0, "step": 0.1}
 
 # Electricity quota ranges
 RANGE_QUOTA_KWH: Final[dict] = {"min": 100.0, "max": 100000.0, "step": 1.0}
