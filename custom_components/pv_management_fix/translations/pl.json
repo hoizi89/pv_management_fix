@@ -186,7 +186,7 @@
       "amort_restlaufzeit": { "name": "Szacowany czas zwrotu" },
       "amort_datum": { "name": "Przewidywana data zwrotu" },
       "co2_ersparnis": { "name": "Zaoszczędzone CO2" },
-      "preis_fix": { "name": "Ustawiona cena energii" },
+      "preis_fix": { "name": "Cena energii netto" },
       "preis_brutto": { "name": "Cena energii brutto" },
       "preis_einspeisung": { "name": "Aktualna cena sprzedaży" },
       "amort_kosten": { "name": "Koszt instalacji PV" },

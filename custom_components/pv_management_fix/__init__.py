@@ -1231,7 +1231,8 @@ class PVManagementFixController:
                     self._daily_grid_import_cost = safe_float(data.get("daily_grid_import_cost"))
                     self._daily_feed_in_earnings = safe_float(data.get("daily_feed_in_earnings"))
                     self._daily_feed_in_kwh = safe_float(data.get("daily_feed_in_kwh"))
-                    # Quota Tages-Zählerstand wiederherstellen
+                    self._daily_tracking_date = today  # Prevent reset on first update
+                    # Restore quota day start meter
                     qdsm = data.get("quota_day_start_meter")
                     if qdsm is not None:
                         self._quota_day_start_meter = safe_float(qdsm)
