@@ -18,7 +18,7 @@ from .const import DOMAIN, DATA_CTRL, CONF_NAME
 
 _LOGGER = logging.getLogger(__name__)
 
-# Geräte-Typen
+# Device types
 DEVICE_MAIN = "main"
 DEVICE_PRICES = "prices"
 DEVICE_QUOTA = "quota"
@@ -28,37 +28,37 @@ DEVICE_PV_STRINGS = "pv_strings"
 
 
 def get_device_info(name: str, device_type: str = DEVICE_MAIN) -> DeviceInfo:
-    """Erstellt DeviceInfo für verschiedene Geräte-Typen."""
+    """Create DeviceInfo for different device types."""
     if device_type == DEVICE_PRICES or device_type == DEVICE_QUOTA:
         return DeviceInfo(
             identifiers={(DOMAIN, f"{name}_prices")},
-            name=f"{name} Strom & Kosten",
+            name=f"{name} Electricity & Costs",
             manufacturer="Custom",
-            model="PV Management Fixpreis - Strom & Kosten",
+            model="PV Management Fixed Price - Electricity & Costs",
             via_device=(DOMAIN, name),
         )
     elif device_type == DEVICE_BATTERY:
         return DeviceInfo(
             identifiers={(DOMAIN, f"{name}_battery")},
-            name=f"{name} Batterie",
+            name=f"{name} Battery",
             manufacturer="Custom",
-            model="PV Management Fixpreis - Batterie",
+            model="PV Management Fixed Price - Battery",
             via_device=(DOMAIN, name),
         )
     elif device_type == DEVICE_BENCHMARK:
         return DeviceInfo(
             identifiers={(DOMAIN, f"{name}_benchmark")},
-            name=f"{name} Energie-Benchmark",
+            name=f"{name} Energy Benchmark",
             manufacturer="Custom",
-            model="PV Energy Management+ - Energie-Benchmark",
+            model="PV Energy Management+ - Energy Benchmark",
             via_device=(DOMAIN, name),
         )
     elif device_type == DEVICE_PV_STRINGS:
         return DeviceInfo(
             identifiers={(DOMAIN, f"{name}_pv_strings")},
-            name=f"{name} PV-Strings",
+            name=f"{name} PV Strings",
             manufacturer="Custom",
-            model="PV Management Fixpreis - PV-Strings",
+            model="PV Management Fixed Price - PV Strings",
             via_device=(DOMAIN, name),
         )
     else:  # DEVICE_MAIN
@@ -66,19 +66,19 @@ def get_device_info(name: str, device_type: str = DEVICE_MAIN) -> DeviceInfo:
             identifiers={(DOMAIN, name)},
             name=name,
             manufacturer="Custom",
-            model="PV Management Fixpreis",
+            model="PV Management Fixed Price",
         )
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ):
-    """Setup der Sensoren."""
+    """Setup sensors."""
     ctrl = hass.data[DOMAIN][entry.entry_id][DATA_CTRL]
     name = entry.data.get(CONF_NAME, "PV Fixpreis")
 
     entities = [
-        # === AMORTISATION (Hauptzweck) ===
+        # === AMORTISATION (Main purpose) ===
         AmortisationPercentSensor(ctrl, name),
         TotalSavingsSensor(ctrl, name),
         RemainingCostSensor(ctrl, name),
@@ -86,34 +86,34 @@ async def async_setup_entry(
         EstimatedPaybackDateSensor(ctrl, name),
         EstimatedRemainingDaysSensor(ctrl, name),
 
-        # === ENERGIE ===
+        # === ENERGY ===
         SelfConsumptionSensor(ctrl, name),
         FeedInSensor(ctrl, name),
         SelfConsumptionRatioSensor(ctrl, name),
         AutarkyRateSensor(ctrl, name),
 
-        # === FINANZEN ===
+        # === FINANCIAL ===
         SavingsSelfConsumptionSensor(ctrl, name),
         EarningsFeedInSensor(ctrl, name),
 
-        # === STATISTIK ===
+        # === STATISTICS ===
         AverageDailySavingsSensor(ctrl, name),
         AverageMonthlySavingsSensor(ctrl, name),
         AverageYearlySavingsSensor(ctrl, name),
         DaysSinceInstallationSensor(ctrl, name),
 
-        # === UMWELT ===
+        # === ENVIRONMENT ===
         CO2SavedSensor(ctrl, name),
 
-        # === DIAGNOSE ===
+        # === DIAGNOSTICS ===
         FixedPriceSensor(ctrl, name),
-        GrossPriceSensor(ctrl, name),  # EUR/kWh für Energy Dashboard
+        GrossPriceSensor(ctrl, name),  # EUR/kWh for Energy Dashboard
         CurrentFeedInTariffSensor(ctrl, name),
         PVProductionSensor(ctrl, name),
         InstallationCostSensor(ctrl, name),
         ConfigurationDiagnosticSensor(ctrl, name, entry),
 
-        # === TÄGLICHE STROMKOSTEN ===
+        # === DAILY ELECTRICITY COSTS ===
         DailyFeedInSensor(ctrl, name),
         DailyGridImportSensor(ctrl, name),
         DailyNetElectricityCostSensor(ctrl, name),
@@ -123,7 +123,7 @@ async def async_setup_entry(
         AnnualROISensor(ctrl, name),
     ]
 
-    # === STROMKONTINGENT (nur wenn aktiviert) ===
+    # === ELECTRICITY QUOTA (only if enabled) ===
     if ctrl.quota_enabled:
         entities.extend([
             QuotaRemainingSensor(ctrl, name),
@@ -136,7 +136,7 @@ async def async_setup_entry(
             QuotaStatusSensor(ctrl, name),
         ])
 
-    # === BENCHMARK (nur wenn aktiviert) ===
+    # === BENCHMARK (only if enabled) ===
     if ctrl.benchmark_enabled:
         entities.extend([
             BenchmarkAvgSensor(ctrl, name),
@@ -148,7 +148,7 @@ async def async_setup_entry(
             BenchmarkScoreSensor(ctrl, name),
             BenchmarkRatingSensor(ctrl, name),
         ])
-        # Spezifischer Ertrag nur wenn PV-Strings konfiguriert (für Peak-Summe)
+        # Specific yield only if PV strings configured (for peak sum)
         if ctrl.pv_strings:
             entities.append(BenchmarkSpecificYieldSensor(ctrl, name))
         if ctrl.benchmark_heatpump:
@@ -159,7 +159,7 @@ async def async_setup_entry(
                 BenchmarkHouseholdSensor(ctrl, name),
             ])
 
-    # === BATTERIE (nur wenn mindestens ein Entity konfiguriert) ===
+    # === BATTERY (only if at least one entity is configured) ===
     if ctrl.battery_soc_entity or ctrl.battery_charge_entity or ctrl.battery_discharge_entity:
         entities.extend([
             BatterySOCSensor(ctrl, name),
@@ -169,7 +169,7 @@ async def async_setup_entry(
             BatteryCyclesSensor(ctrl, name),
         ])
 
-    # === PV-STRINGS (optional) ===
+    # === PV STRINGS (optional) ===
     if ctrl.pv_strings:
         for i, (string_name, string_entity, power_entity, installed_kwp) in enumerate(ctrl.pv_strings):
             entities.extend([
@@ -182,7 +182,7 @@ async def async_setup_entry(
                     PVStringSensor(ctrl, name, i, string_name, string_entity, power_entity, installed_kwp, "peak"),
                     PVStringSensor(ctrl, name, i, string_name, string_entity, power_entity, installed_kwp, "daily_peak"),
                 ])
-            # Spezifischer Ertrag + Performance Ratio (braucht kWp oder Power-Entity)
+            # Specific yield + Performance Ratio (requires kWp or power entity)
             if installed_kwp > 0 or power_entity:
                 entities.append(PVStringSensor(ctrl, name, i, string_name, string_entity, power_entity, installed_kwp, "specific_yield"))
             if power_entity and installed_kwp > 0:
@@ -196,7 +196,7 @@ async def async_setup_entry(
 
 
 class BaseEntity(SensorEntity):
-    """Basis-Klasse für alle Sensoren."""
+    """Base class for all sensors."""
 
     _attr_should_poll = False
     _attr_has_entity_name = True
@@ -215,7 +215,7 @@ class BaseEntity(SensorEntity):
     ):
         self.ctrl = ctrl
         self._base_name = name
-        self._attr_name = key
+        self._attr_translation_key = key.lower().replace(' ', '_').replace('/', '_')
         uid_name = "".join(c if c.isalnum() else "_" for c in name).lower()
         self._attr_unique_id = f"{DOMAIN}_{uid_name}_{key.lower().replace(' ', '_')}"
         self._attr_native_unit_of_measurement = unit
@@ -228,7 +228,7 @@ class BaseEntity(SensorEntity):
 
     @property
     def available(self) -> bool:
-        """Sensor ist erst verfügbar wenn gespeicherte Daten wiederhergestellt sind."""
+        """Sensor is only available once saved data has been restored."""
         return getattr(self.ctrl, "_restored", True)
 
     async def async_added_to_hass(self):
@@ -246,7 +246,7 @@ class BaseEntity(SensorEntity):
 
 
 class PVStringSensor(BaseEntity):
-    """Generischer Sensor für PV-String Vergleich."""
+    """Generic sensor for PV string comparison."""
 
     def __init__(self, ctrl, name: str, string_index: int, string_name: str, entity_id: str, power_entity_id: str | None, installed_kwp: float, sensor_type: str):
         self._string_entity_id = entity_id
@@ -277,6 +277,8 @@ class PVStringSensor(BaseEntity):
         key = f"{string_name} {uid_suffix}"
 
         super().__init__(ctrl, name, key, unit=unit, icon=icon, state_class=state_class, device_type=DEVICE_PV_STRINGS)
+        self._attr_translation_key = None
+        self._attr_name = key
 
     @property
     def native_value(self):
@@ -293,7 +295,7 @@ class PVStringSensor(BaseEntity):
             val = self.ctrl.get_string_daily_peak_kw(self._power_entity_id)
             return val
         elif self._sensor_type == "specific_yield":
-            # Fallback: installierte kWp → gemessener Peak
+            # Fallback: installed kWp -> measured peak
             kwp = self._installed_kwp
             if kwp <= 0 and self._power_entity_id:
                 peak_kw = self.ctrl.get_string_peak_kw(self._power_entity_id)
@@ -307,7 +309,7 @@ class PVStringSensor(BaseEntity):
 
 
 class TotalDailyProductionSensor(BaseEntity):
-    """Durchschnittliche Tagesproduktion aller PV-Strings."""
+    """Average daily production of all PV strings."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(ctrl, name, "Gesamt Tagesproduktion", unit="kWh/Tag", icon="mdi:weather-sunny",
@@ -319,7 +321,7 @@ class TotalDailyProductionSensor(BaseEntity):
 
 
 class TotalPeakSensor(BaseEntity):
-    """Gesamt-Peak aller PV-Strings."""
+    """Total peak of all PV strings."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(ctrl, name, "Gesamt Peak", unit="kW", icon="mdi:solar-power-variant",
@@ -331,7 +333,7 @@ class TotalPeakSensor(BaseEntity):
 
 
 class TotalDailyPeakSensor(BaseEntity):
-    """Gesamt-Peak heute aller PV-Strings."""
+    """Total peak today of all PV strings."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(ctrl, name, "Gesamt Peak Heute", unit="kW", icon="mdi:solar-power-variant-outline",
@@ -343,12 +345,12 @@ class TotalDailyPeakSensor(BaseEntity):
 
 
 # =============================================================================
-# HAUPT-SENSOREN
+# MAIN SENSORS
 # =============================================================================
 
 
 class AmortisationPercentSensor(BaseEntity):
-    """Amortisation in Prozent - Hauptindikator."""
+    """Amortisation in percent - main indicator."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -375,7 +377,7 @@ class AmortisationPercentSensor(BaseEntity):
 
 
 class TotalSavingsSensor(BaseEntity, RestoreEntity):
-    """Gesamtersparnis in Euro - persistiert Daten."""
+    """Total savings in Euro - persists data."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -409,26 +411,26 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
                 "first_seen_date": attrs.get("first_seen_date"),
                 "tracked_grid_import_kwh": safe_float(attrs.get("tracked_grid_import_kwh")),
                 "total_grid_import_cost": safe_float(attrs.get("total_grid_import_cost")),
-                # WP Delta-Tracking
+                # Heat pump delta tracking
                 "tracked_wp_kwh": safe_float(attrs.get("tracked_wp_kwh")),
                 "wp_first_seen_date": attrs.get("wp_first_seen_date"),
-                # PV-String Delta-Tracking
+                # PV string delta tracking
                 "string_tracked_kwh": attrs.get("string_tracked_kwh", {}),
                 "string_first_seen_date": attrs.get("string_first_seen_date"),
                 "string_peak_w": attrs.get("string_peak_w", {}),
-                # Daily tracking
+                # Daily tracking (restore)
                 "daily_grid_import_kwh": safe_float(attrs.get("daily_grid_import_kwh")),
                 "daily_grid_import_cost": safe_float(attrs.get("daily_grid_import_cost")),
                 "daily_feed_in_earnings": safe_float(attrs.get("daily_feed_in_earnings")),
                 "daily_feed_in_kwh": safe_float(attrs.get("daily_feed_in_kwh")),
                 "daily_reset_date": attrs.get("daily_reset_date"),
                 "quota_day_start_meter": safe_float(attrs.get("quota_day_start_meter")),
-                # Monthly tracking
+                # Monthly tracking (persistent)
                 "monthly_grid_import_kwh": safe_float(attrs.get("monthly_grid_import_kwh")),
                 "monthly_grid_import_cost": safe_float(attrs.get("monthly_grid_import_cost")),
                 "monthly_reset_month": attrs.get("monthly_reset_month"),
                 "monthly_reset_year": attrs.get("monthly_reset_year"),
-                # Benchmark Snapshot
+                # Benchmark snapshot
                 "benchmark_start_date": attrs.get("benchmark_start_date"),
                 "benchmark_start_self_consumption": safe_float(attrs.get("benchmark_start_self_consumption")),
                 "benchmark_start_grid_import": safe_float(attrs.get("benchmark_start_grid_import")),
@@ -463,28 +465,28 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
             "first_seen_date": self.ctrl._first_seen_date.isoformat() if self.ctrl._first_seen_date else None,
             "tracked_grid_import_kwh": round(self.ctrl._tracked_grid_import_kwh, 4),
             "total_grid_import_cost": round(self.ctrl._total_grid_import_cost, 4),
-            # WP Delta-Tracking (persistent)
+            # Heat pump delta tracking (persistent)
             "tracked_wp_kwh": round(self.ctrl._tracked_wp_kwh, 4),
             "wp_first_seen_date": self.ctrl._wp_first_seen_date.isoformat() if self.ctrl._wp_first_seen_date else None,
-            # PV-String Delta-Tracking (persistent)
+            # PV string delta tracking (persistent)
             "string_tracked_kwh": self.ctrl._string_tracked_kwh,
             "string_first_seen_date": self.ctrl._string_first_seen_date.isoformat() if self.ctrl._string_first_seen_date else None,
             "string_peak_w": self.ctrl._string_peak_w,
             "string_daily_peak_w": self.ctrl._string_daily_peak_w,
             "string_daily_peak_date": self.ctrl._string_daily_peak_date.isoformat() if self.ctrl._string_daily_peak_date else None,
-            # Daily tracking
+            # Daily tracking (persistent)
             "daily_grid_import_kwh": round(self.ctrl._daily_grid_import_kwh, 4),
             "daily_grid_import_cost": round(self.ctrl._daily_grid_import_cost, 4),
             "daily_feed_in_earnings": round(self.ctrl._daily_feed_in_earnings, 4),
             "daily_feed_in_kwh": round(self.ctrl._daily_feed_in_kwh, 4),
             "daily_reset_date": date.today().isoformat(),
             "quota_day_start_meter": self.ctrl._quota_day_start_meter,
-            # Monthly tracking
+            # Monthly tracking (persistent)
             "monthly_grid_import_kwh": round(self.ctrl._monthly_grid_import_kwh, 4),
             "monthly_grid_import_cost": round(self.ctrl._monthly_grid_import_cost, 4),
             "monthly_reset_month": date.today().month,
             "monthly_reset_year": date.today().year,
-            # Benchmark Snapshot
+            # Benchmark snapshot
             "benchmark_start_date": self.ctrl._benchmark_start_date.isoformat() if self.ctrl._benchmark_start_date else None,
             "benchmark_start_self_consumption": round(self.ctrl._benchmark_start_self_consumption, 4),
             "benchmark_start_grid_import": round(self.ctrl._benchmark_start_grid_import, 4),
@@ -496,7 +498,7 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
 
 
 class RemainingCostSensor(BaseEntity):
-    """Verbleibender Betrag bis Amortisation."""
+    """Remaining amount until amortisation."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -521,7 +523,7 @@ class RemainingCostSensor(BaseEntity):
 
 
 class StatusSensor(BaseEntity):
-    """Status-Text (z.B. '45.2% amortisiert' oder 'Amortisiert!')."""
+    """Status text (e.g. '45.2% amortised' or 'Amortised!')."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -560,12 +562,12 @@ class StatusSensor(BaseEntity):
 
 
 # =============================================================================
-# ENERGIE-SENSOREN
+# ENERGY SENSORS
 # =============================================================================
 
 
 class SelfConsumptionSensor(BaseEntity):
-    """Eigenverbrauch in kWh."""
+    """Self consumption in kWh."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -584,7 +586,7 @@ class SelfConsumptionSensor(BaseEntity):
 
 
 class FeedInSensor(BaseEntity):
-    """Netzeinspeisung in kWh."""
+    """Grid feed-in in kWh."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -603,7 +605,7 @@ class FeedInSensor(BaseEntity):
 
 
 class PVProductionSensor(BaseEntity):
-    """PV-Produktion in kWh."""
+    """PV production in kWh."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -623,12 +625,12 @@ class PVProductionSensor(BaseEntity):
 
 
 # =============================================================================
-# FINANZ-SENSOREN
+# FINANCIAL SENSORS
 # =============================================================================
 
 
 class SavingsSelfConsumptionSensor(BaseEntity):
-    """Ersparnis durch Eigenverbrauch."""
+    """Savings from self consumption."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -650,12 +652,12 @@ class SavingsSelfConsumptionSensor(BaseEntity):
         return {
             "self_consumption_kwh": f"{self.ctrl.self_consumption_kwh:.2f} kWh",
             "fixed_price": f"{self.ctrl.fixed_price_ct:.2f} ct/kWh",
-            "calculation": "Eigenverbrauch × Fixpreis",
+            "calculation": "Self Consumption × Fixed Price",
         }
 
 
 class EarningsFeedInSensor(BaseEntity):
-    """Einnahmen durch Einspeisung."""
+    """Earnings from feed-in."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -681,12 +683,12 @@ class EarningsFeedInSensor(BaseEntity):
 
 
 # =============================================================================
-# EFFIZIENZ-SENSOREN
+# EFFICIENCY SENSORS
 # =============================================================================
 
 
 class SelfConsumptionRatioSensor(BaseEntity):
-    """Eigenverbrauchsquote in Prozent."""
+    """Self consumption ratio in percent."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -704,7 +706,7 @@ class SelfConsumptionRatioSensor(BaseEntity):
 
 
 class AutarkyRateSensor(BaseEntity):
-    """Autarkiegrad in Prozent."""
+    """Autarky rate in percent."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -725,12 +727,12 @@ class AutarkyRateSensor(BaseEntity):
 
 
 # =============================================================================
-# STATISTIK-SENSOREN
+# STATISTICS SENSORS
 # =============================================================================
 
 
 class AverageDailySavingsSensor(BaseEntity):
-    """Durchschnittliche tägliche Ersparnis."""
+    """Average daily savings."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -748,7 +750,7 @@ class AverageDailySavingsSensor(BaseEntity):
 
 
 class AverageMonthlySavingsSensor(BaseEntity):
-    """Durchschnittliche monatliche Ersparnis."""
+    """Average monthly savings."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -766,7 +768,7 @@ class AverageMonthlySavingsSensor(BaseEntity):
 
 
 class AverageYearlySavingsSensor(BaseEntity):
-    """Durchschnittliche jährliche Ersparnis."""
+    """Average yearly savings."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -784,7 +786,7 @@ class AverageYearlySavingsSensor(BaseEntity):
 
 
 class DaysSinceInstallationSensor(BaseEntity):
-    """Tage seit Installation."""
+    """Days since installation."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -802,12 +804,12 @@ class DaysSinceInstallationSensor(BaseEntity):
 
 
 # =============================================================================
-# PROGNOSE-SENSOREN
+# FORECAST SENSORS
 # =============================================================================
 
 
 class EstimatedRemainingDaysSensor(BaseEntity):
-    """Geschätzte verbleibende Tage bis Amortisation."""
+    """Estimated remaining days until amortisation."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -827,7 +829,7 @@ class EstimatedRemainingDaysSensor(BaseEntity):
     def extra_state_attributes(self):
         remaining = self.ctrl.estimated_remaining_days
         if remaining is None:
-            return {"status": "Berechnung nicht möglich"}
+            return {"status": "Calculation not possible"}
 
         years = remaining // 365
         months = (remaining % 365) // 30
@@ -835,11 +837,11 @@ class EstimatedRemainingDaysSensor(BaseEntity):
 
         parts = []
         if years > 0:
-            parts.append(f"{years} Jahr{'e' if years > 1 else ''}")
+            parts.append(f"{years} year{'s' if years > 1 else ''}")
         if months > 0:
-            parts.append(f"{months} Monat{'e' if months > 1 else ''}")
+            parts.append(f"{months} month{'s' if months > 1 else ''}")
         if days > 0 or not parts:
-            parts.append(f"{days} Tag{'e' if days != 1 else ''}")
+            parts.append(f"{days} day{'s' if days != 1 else ''}")
 
         return {
             "formatted": ", ".join(parts),
@@ -850,7 +852,7 @@ class EstimatedRemainingDaysSensor(BaseEntity):
 
 
 class EstimatedPaybackDateSensor(BaseEntity):
-    """Geschätztes Amortisationsdatum."""
+    """Estimated amortisation date."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -873,12 +875,12 @@ class EstimatedPaybackDateSensor(BaseEntity):
 
 
 # =============================================================================
-# UMWELT-SENSOREN
+# ENVIRONMENT SENSORS
 # =============================================================================
 
 
 class CO2SavedSensor(BaseEntity):
-    """Eingesparte CO2-Emissionen."""
+    """Saved CO2 emissions."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -905,12 +907,12 @@ class CO2SavedSensor(BaseEntity):
 
 
 # =============================================================================
-# KONFIGURATIONS-SENSOREN (DIAGNOSE)
+# CONFIGURATION SENSORS (DIAGNOSTICS)
 # =============================================================================
 
 
 class FixedPriceSensor(BaseEntity):
-    """Konfigurierter Fixpreis."""
+    """Configured fixed price."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -930,7 +932,7 @@ class FixedPriceSensor(BaseEntity):
 
 
 class GrossPriceSensor(BaseEntity):
-    """Brutto-Strompreis für Energy Dashboard (EUR/kWh)."""
+    """Gross electricity price for Energy Dashboard (EUR/kWh)."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -949,7 +951,7 @@ class GrossPriceSensor(BaseEntity):
 
 
 class CurrentFeedInTariffSensor(BaseEntity):
-    """Aktuelle Einspeisevergütung."""
+    """Current feed-in tariff."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -969,7 +971,7 @@ class CurrentFeedInTariffSensor(BaseEntity):
 
 
 class InstallationCostSensor(BaseEntity):
-    """Anschaffungskosten der PV-Anlage."""
+    """Installation cost of the PV system."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -988,7 +990,7 @@ class InstallationCostSensor(BaseEntity):
 
 
 class ConfigurationDiagnosticSensor(BaseEntity):
-    """Diagnose-Sensor zeigt alle konfigurierten Sensoren."""
+    """Diagnostic sensor showing all configured sensors."""
 
     def __init__(self, ctrl, name: str, entry: ConfigEntry):
         super().__init__(
@@ -1001,21 +1003,21 @@ class ConfigurationDiagnosticSensor(BaseEntity):
         self._entry = entry
 
     def _get_entity_status(self, entity_id: str | None) -> dict[str, Any]:
-        """Holt Status einer Entity."""
+        """Get status of an entity."""
         if not entity_id:
-            return {"configured": False, "entity_id": None, "state": None, "status": "nicht konfiguriert"}
+            return {"configured": False, "entity_id": None, "state": None, "status": "not configured"}
 
         state = self.hass.states.get(entity_id)
         if state is None:
-            return {"configured": True, "entity_id": entity_id, "state": None, "status": "nicht gefunden"}
+            return {"configured": True, "entity_id": entity_id, "state": None, "status": "not found"}
         elif state.state in ("unavailable", "unknown"):
-            return {"configured": True, "entity_id": entity_id, "state": state.state, "status": "nicht verfügbar"}
+            return {"configured": True, "entity_id": entity_id, "state": state.state, "status": "unavailable"}
         else:
             return {"configured": True, "entity_id": entity_id, "state": state.state, "status": "OK"}
 
     @property
     def native_value(self) -> str:
-        """Zeigt Gesamtstatus der Konfiguration."""
+        """Show overall configuration status."""
         issues = 0
         for entity_id in [self.ctrl.pv_production_entity, self.ctrl.grid_export_entity]:
             if entity_id:
@@ -1025,7 +1027,7 @@ class ConfigurationDiagnosticSensor(BaseEntity):
         if issues == 0:
             return "OK"
         else:
-            return f"{issues} Problem{'e' if issues > 1 else ''}"
+            return f"{issues} problem{'s' if issues > 1 else ''}"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -1060,12 +1062,12 @@ class ConfigurationDiagnosticSensor(BaseEntity):
 
 
 # =============================================================================
-# TÄGLICHE STROMKOSTEN
+# DAILY ELECTRICITY COSTS
 # =============================================================================
 
 
 class DailyFeedInSensor(BaseEntity):
-    """Einspeisung heute: Vergütung und Menge."""
+    """Feed-in today: remuneration and amount."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1092,7 +1094,7 @@ class DailyFeedInSensor(BaseEntity):
 
 
 class DailyGridImportSensor(BaseEntity):
-    """Netzbezug heute: Kosten und Verbrauch."""
+    """Grid import today: costs and consumption."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1120,7 +1122,7 @@ class DailyGridImportSensor(BaseEntity):
 
 
 class DailyNetElectricityCostSensor(BaseEntity):
-    """Netto-Stromkosten heute: Netzbezug minus Einspeisung."""
+    """Net electricity costs today: grid import minus feed-in."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1147,12 +1149,12 @@ class DailyNetElectricityCostSensor(BaseEntity):
 
 
 # =============================================================================
-# STROMKONTINGENT SENSOREN
+# ELECTRICITY QUOTA SENSORS
 # =============================================================================
 
 
 class QuotaRemainingSensor(BaseEntity):
-    """Kontingent Verbleibend - Hauptsensor: wieviel kWh noch übrig."""
+    """Quota remaining - main sensor: how many kWh are left."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1178,7 +1180,7 @@ class QuotaRemainingSensor(BaseEntity):
 
 
 class QuotaConsumedPercentSensor(BaseEntity):
-    """Kontingent Verbrauch - Prozent des Jahres-Kontingents verbraucht."""
+    """Quota consumption - percent of yearly quota consumed."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1197,7 +1199,7 @@ class QuotaConsumedPercentSensor(BaseEntity):
 
 
 class QuotaReserveSensor(BaseEntity):
-    """Kontingent Reserve - positiv = unter Budget, negativ = drüber."""
+    """Quota reserve - positive = under budget, negative = over."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1230,7 +1232,7 @@ class QuotaReserveSensor(BaseEntity):
 
 
 class QuotaDailyBudgetSensor(BaseEntity):
-    """Kontingent Tagesbudget - wieviel pro Tag noch verbrauchen darf."""
+    """Quota daily budget - how much can still be consumed per day."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1252,7 +1254,7 @@ class QuotaDailyBudgetSensor(BaseEntity):
 
 
 class QuotaForecastSensor(BaseEntity):
-    """Kontingent Prognose - Hochrechnung Verbrauch am Periodenende."""
+    """Quota forecast - projected consumption at end of period."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1291,14 +1293,14 @@ class QuotaForecastSensor(BaseEntity):
             diff = forecast - self.ctrl.quota_yearly_kwh
             attrs["prognose_differenz_kwh"] = round(diff, 0)
             if diff > 0:
-                attrs["bewertung"] = f"Voraussichtlich {diff:.0f} kWh über Kontingent"
+                attrs["bewertung"] = f"Expected {diff:.0f} kWh over quota"
             else:
-                attrs["bewertung"] = f"Voraussichtlich {abs(diff):.0f} kWh unter Kontingent"
+                attrs["bewertung"] = f"Expected {abs(diff):.0f} kWh under quota"
         return attrs
 
 
 class QuotaDaysRemainingSensor(BaseEntity):
-    """Kontingent Restlaufzeit - verbleibende Tage in der Periode."""
+    """Quota remaining time - remaining days in the period."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1328,7 +1330,7 @@ class QuotaDaysRemainingSensor(BaseEntity):
 
 
 class QuotaTodayRemainingSensor(BaseEntity):
-    """Kontingent Heute Verbleibend — wieviel darf ich heute noch verbrauchen."""
+    """Quota today remaining - how much can still be consumed today."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1367,7 +1369,7 @@ class QuotaTodayRemainingSensor(BaseEntity):
 
 
 class QuotaStatusSensor(BaseEntity):
-    """Kontingent Status - Textuelle Zusammenfassung."""
+    """Quota status - textual summary."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1409,12 +1411,12 @@ class QuotaStatusSensor(BaseEntity):
 
 
 # =============================================================================
-# BATTERIE-SENSOREN
+# BATTERY SENSORS
 # =============================================================================
 
 
 class BatterySOCSensor(BaseEntity):
-    """Batterie Ladestand."""
+    """Battery state of charge."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1464,7 +1466,7 @@ class BatterySOCSensor(BaseEntity):
 
 
 class BatteryChargeTotalSensor(BaseEntity):
-    """Batterie Ladung Gesamt."""
+    """Battery charge total."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1487,7 +1489,7 @@ class BatteryChargeTotalSensor(BaseEntity):
 
 
 class BatteryDischargeTotalSensor(BaseEntity):
-    """Batterie Entladung Gesamt."""
+    """Battery discharge total."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1510,7 +1512,7 @@ class BatteryDischargeTotalSensor(BaseEntity):
 
 
 class BatteryEfficiencySensor(BaseEntity):
-    """Batterie Effizienz."""
+    """Battery efficiency."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1532,7 +1534,7 @@ class BatteryEfficiencySensor(BaseEntity):
 
 
 class BatteryCyclesSensor(BaseEntity):
-    """Batterie Zyklen (geschätzt)."""
+    """Battery cycles (estimated)."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1560,7 +1562,7 @@ class BatteryCyclesSensor(BaseEntity):
 
 
 # =============================================================================
-# ROI-SENSOREN
+# ROI SENSORS
 # =============================================================================
 
 
@@ -1594,7 +1596,7 @@ class ROISensor(BaseEntity):
 
 
 class AnnualROISensor(BaseEntity):
-    """Jährlicher ROI."""
+    """Annual ROI."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1615,7 +1617,7 @@ class AnnualROISensor(BaseEntity):
 
 
 # =============================================================================
-# BENCHMARK-SENSOREN
+# BENCHMARK SENSORS
 # =============================================================================
 
 
@@ -1624,7 +1626,7 @@ MONTH_NAMES_DE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
 
 
 class BenchmarkAvgSensor(BaseEntity):
-    """Benchmark Durchschnitt — Referenzverbrauch Haushaltsstrom."""
+    """Benchmark average - reference household electricity consumption."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1643,7 +1645,7 @@ class BenchmarkAvgSensor(BaseEntity):
 
 
 class BenchmarkOwnSensor(BaseEntity):
-    """Benchmark Gesamtverbrauch — inkl. WP, hochgerechnet auf 1 Jahr."""
+    """Benchmark total consumption - incl. heat pump, extrapolated to 1 year."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1682,7 +1684,7 @@ class BenchmarkOwnSensor(BaseEntity):
 
 
 class BenchmarkHouseholdSensor(BaseEntity):
-    """Haushaltsverbrauch ohne WP, hochgerechnet auf 1 Jahr."""
+    """Household consumption without heat pump, extrapolated to 1 year."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1704,7 +1706,7 @@ class BenchmarkHouseholdSensor(BaseEntity):
 
 
 class BenchmarkGridImportSensor(BaseEntity):
-    """Jährlicher Netzbezug hochgerechnet."""
+    """Annual grid import extrapolated."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1726,7 +1728,7 @@ class BenchmarkGridImportSensor(BaseEntity):
 
 
 class BenchmarkAnnualPVSensor(BaseEntity):
-    """Hochgerechnete PV-Jahresproduktion."""
+    """Extrapolated annual PV production."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1748,7 +1750,7 @@ class BenchmarkAnnualPVSensor(BaseEntity):
 
 
 class BenchmarkSpecificYieldSensor(BaseEntity):
-    """Spezifischer Ertrag in kWh/kWp."""
+    """Specific yield in kWh/kWp."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1770,7 +1772,7 @@ class BenchmarkSpecificYieldSensor(BaseEntity):
 
 
 class BenchmarkComparisonSensor(BaseEntity):
-    """Benchmark Vergleich — Eigener vs. Durchschnitt in %."""
+    """Benchmark comparison - own vs. average in %."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1811,7 +1813,7 @@ class BenchmarkComparisonSensor(BaseEntity):
 
 
 class BenchmarkCO2Sensor(BaseEntity):
-    """Benchmark CO2 Vermieden — CO2-Einsparung durch PV pro Jahr."""
+    """Benchmark CO2 avoided - CO2 savings from PV per year."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1833,7 +1835,7 @@ class BenchmarkCO2Sensor(BaseEntity):
 
 
 class BenchmarkScoreSensor(BaseEntity):
-    """Benchmark Effizienz Score — 0-100 Punkte."""
+    """Benchmark efficiency score - 0-100 points."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1876,7 +1878,7 @@ class BenchmarkScoreSensor(BaseEntity):
 
 
 class BenchmarkRatingSensor(BaseEntity):
-    """Benchmark Bewertung — Textuelle Bewertung."""
+    """Benchmark rating - textual rating."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1893,7 +1895,7 @@ class BenchmarkRatingSensor(BaseEntity):
 
 
 class BenchmarkHeatpumpAvgSensor(BaseEntity):
-    """Benchmark WP Durchschnitt — Referenz-WP-Verbrauch."""
+    """Benchmark heat pump average - reference heat pump consumption."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1912,7 +1914,7 @@ class BenchmarkHeatpumpAvgSensor(BaseEntity):
 
 
 class BenchmarkHeatpumpOwnSensor(BaseEntity):
-    """Benchmark WP Verbrauch — Eigener WP-Verbrauch hochgerechnet."""
+    """Benchmark heat pump consumption - own heat pump consumption extrapolated."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -1934,7 +1936,7 @@ class BenchmarkHeatpumpOwnSensor(BaseEntity):
 
 
 class BenchmarkHeatpumpComparisonSensor(BaseEntity):
-    """Benchmark WP Vergleich — WP-Verbrauch vs. WP-Durchschnitt in %."""
+    """Benchmark heat pump comparison - heat pump consumption vs. average in %."""
 
     def __init__(self, ctrl, name: str):
         super().__init__(

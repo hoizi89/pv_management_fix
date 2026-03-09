@@ -1,0 +1,230 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Skonfiguruj PV Energy Management+",
+        "description": "Zarządzanie fotowoltaiką dla taryf ze stałą ceną. Oblicza amortyzację, benchmarki i porównuje wydajność.",
+        "data": {
+          "name": "Nazwa instalacji",
+          "pv_production_entity": "Sensor Produkcji PV (kWh)",
+          "grid_export_entity": "Sensor Eksportu do sieci (kWh, opcjonalnie)",
+          "grid_import_entity": "Sensor Poboru z sieci (kWh, opcjonalnie)",
+          "consumption_entity": "Sensor Zużycia domowego (kWh, opcjonalnie)",
+          "fixed_price": "Cena energii netto (gr/kWh)",
+          "markup_factor": "Mnożnik brutto (np. VAT i dystrybucja)",
+          "electricity_price_entity": "Sensor dynamicznej ceny energii (opcjonalnie)",
+          "feed_in_tariff_unit": "Jednostka stawki eksportu",
+          "feed_in_tariff": "Stawka odkupu (eksport)",
+          "installation_cost": "Koszt instalacji PV",
+          "installation_date": "Data instalacji (opcjonalnie)"
+        },
+        "data_description": {
+          "name": "Nazwa dla tej instalacji PV",
+          "pv_production_entity": "Licznik całkowitej produkcji PV w kWh",
+          "grid_export_entity": "Licznik eksportu do sieci w kWh (do obliczeń zysku)",
+          "grid_import_entity": "Licznik poboru z sieci w kWh (do porównań)",
+          "consumption_entity": "Licznik całkowitego zużycia w domu w kWh",
+          "fixed_price": "Cena energii netto od dostawcy (np. 50 gr/kWh)",
+          "markup_factor": "Mnożnik dla opłat dystrybucyjnych i podatków (Domyślnie: 2.0). Brutto = Netto × Mnożnik",
+          "electricity_price_entity": "Opcjonalnie: Sensor dynamicznej ceny prądu (nadpisuje stałą stawkę)",
+          "feed_in_tariff_unit": "Wybierz, czy stawka sprzedaży jest w złotych czy groszach za kWh",
+          "feed_in_tariff": "Twoja stawka sprzedaży nadwyżek energii",
+          "installation_cost": "Całkowity koszt instalacji fotowoltaicznej w PLN",
+          "installation_date": "Data montażu, ważna do statystyk amortyzacji"
+        }
+      }
+    },
+    "error": {
+      "unknown": "Wystąpił nieznany błąd"
+    },
+    "abort": {
+      "already_configured": "Ta instalacja PV została już skonfigurowana"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ustawienia PV Energy Management+",
+        "description": "Wybierz kategorię do edycji.",
+        "menu_options": {
+          "sensors": "Sensory Energii",
+          "prices": "Ceny Prądu i Amortyzacja",
+          "helper": "Pomocnik Amortyzacji",
+          "offsets": "Dane Historyczne",
+          "quota": "Limit Zużycia (Quota)",
+          "battery": "Magazyn Energii",
+          "benchmark": "Benchmark Zużycia",
+          "pv_strings": "Stringi PV (Porównanie)",
+          "reset": "Resetowanie Danych"
+        }
+      },
+      "sensors": {
+        "title": "Sensory Energii",
+        "description": "Skonfiguruj sensory śledzące przepływ energii.",
+        "data": {
+          "pv_production_entity": "Sensor Produkcji PV (kWh)",
+          "grid_export_entity": "Sensor Eksportu (kWh)",
+          "grid_import_entity": "Sensor Poboru (kWh)",
+          "consumption_entity": "Sensor Zużycia Domu (kWh)"
+        }
+      },
+      "prices": {
+        "title": "Ceny Prądu i Amortyzacja",
+        "description": "Zdefiniuj stawkę kupna i sprzedaży prądu. Obie wartości mogą być dynamicznie pobierane z sensorów.",
+        "data": {
+          "fixed_price": "Cena netto (gr/kWh) — awaryjna",
+          "markup_factor": "Mnożnik (opłaty sieciowe + VAT)",
+          "electricity_price_entity": "Cena energii z sensora (opcjonalnie)",
+          "feed_in_tariff_unit": "Jednostka stawki odkupu",
+          "feed_in_tariff": "Stawka odkupu — awaryjna",
+          "feed_in_tariff_entity": "Stawka odkupu z sensora (opcjonalnie)",
+          "installation_cost": "Koszt instalacji systemu PV",
+          "installation_date": "Data uruchomienia"
+        }
+      },
+      "offsets": {
+        "title": "Dane Historyczne",
+        "description": "Wprowadź dane sprzed uruchomienia tej integracji.",
+        "data": {
+          "savings_offset": "Kwota już zamortyzowana (PLN)",
+          "energy_offset_self_consumption": "Autokonsumpcja przed użyciem (kWh)",
+          "energy_offset_export": "Eksport przed użyciem (kWh)"
+        }
+      },
+      "quota": {
+        "title": "Limit Zużycia (Quota)",
+        "description": "Sprawdź, czy mieścisz się w rocznym limicie tańszego prądu.",
+        "data": {
+          "quota_enabled": "Włącz roczny limit zużycia",
+          "quota_yearly_kwh": "Roczny limit (kWh)",
+          "quota_start_date": "Data startu limitu",
+          "quota_start_meter": "Stan licznika poboru na starcie (opcjonalnie)",
+          "quota_monthly_rate": "Miesięczna wpłata / zaliczka"
+        }
+      },
+      "battery": {
+        "title": "Magazyn Energii (Bateria)",
+        "description": "Skonfiguruj sensory śledzące pracę magazynu energii.",
+        "data": {
+          "battery_soc_entity": "Stan naładowania (SOC %)",
+          "battery_charge_entity": "Całkowite ładowanie (kWh)",
+          "battery_discharge_entity": "Całkowite rozładowanie (kWh)",
+          "battery_capacity": "Pojemność baterii (kWh)"
+        }
+      },
+      "benchmark": {
+        "title": "Benchmark Energii",
+        "description": "Porównaj swoje zużycie ze średnią dla Twojego kraju.",
+        "data": {
+          "benchmark_enabled": "Włącz Benchmark",
+          "benchmark_country": "Kraj",
+          "benchmark_household_size": "Liczba osób w gospodarstwie",
+          "benchmark_heatpump": "Posiadam pompę ciepła",
+          "benchmark_heatpump_entity": "Sensor zużycia pompy ciepła (kWh)"
+        },
+        "data_description": {
+          "benchmark_country": "Dostępne kraje: PL, AT, DE, CH",
+          "benchmark_heatpump_entity": "Opcjonalnie: Licznik pompy w celu oddzielenia jej od zużycia domowego."
+        }
+      },
+      "pv_strings": {
+        "title": "Stringi PV (Konfiguracja obwodów)",
+        "description": "Dodaj do 4 stringów w celu śledzenia ich wydajności i pików mocy.",
+        "data": {
+          "pv_string_1_name": "Nazwa Stringu 1",
+          "pv_string_1_entity": "Sensor energii 1 (kWh)",
+          "pv_string_1_power": "Sensor mocy 1 (W)",
+          "pv_string_1_kwp": "Moc zainstalowana (kWp)",
+          "pv_string_2_name": "Nazwa Stringu 2",
+          "pv_string_2_entity": "Sensor energii 2 (kWh)",
+          "pv_string_2_power": "Sensor mocy 2 (W)",
+          "pv_string_2_kwp": "Moc zainstalowana (kWp)",
+          "pv_string_3_name": "Nazwa Stringu 3",
+          "pv_string_3_entity": "Sensor energii 3 (kWh)",
+          "pv_string_3_power": "Sensor mocy 3 (W)",
+          "pv_string_3_kwp": "Moc zainstalowana (kWp)",
+          "pv_string_4_name": "Nazwa Stringu 4",
+          "pv_string_4_entity": "Sensor energii 4 (kWh)",
+          "pv_string_4_power": "Sensor mocy 4 (W)",
+          "pv_string_4_kwp": "Moc zainstalowana (kWp)"
+        }
+      },
+      "reset": {
+        "title": "Resetowanie Danych",
+        "description": "Wybierz, co zresetować. Operacja jest nieodwracalna!",
+        "data": {
+          "reset_target": "Cel Resetu"
+        }
+      }
+    }
+  },
+  "selector": {
+    "feed_in_tariff_unit": {
+      "options": {
+        "eur": "Waluta za kWh (np. PLN/kWh)",
+        "cent": "Grosze/Cent za kWh"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "amortisation": { "name": "Amortyzacja" },
+      "gesamtersparnis": { "name": "Całkowite oszczędności" },
+      "amort_restbetrag": { "name": "Pozostało do spłaty" },
+      "amort_status": { "name": "Status Amortyzacji" },
+      "eigenverbrauch": { "name": "Autokonsumpcja" },
+      "einspeisung": { "name": "Eksport (Oddane)" },
+      "pv_produktion": { "name": "Całkowita Produkcja" },
+      "ersparnis_eigenverbrauch": { "name": "Zysk z autokonsumpcji" },
+      "einnahmen_einspeisung": { "name": "Zysk ze sprzedaży" },
+      "eigenverbrauchsquote": { "name": "Wskaźnik autokonsumpcji" },
+      "autarkiegrad": { "name": "Wskaźnik autarkii" },
+      "amort_ersparnis_tag": { "name": "Śr. oszczędność dziennie" },
+      "amort_ersparnis_monat": { "name": "Śr. oszczędność miesięcznie" },
+      "amort_ersparnis_jahr": { "name": "Śr. oszczędność rocznie" },
+      "amort_tage": { "name": "Dni działania instalacji" },
+      "amort_restlaufzeit": { "name": "Szacowany czas zwrotu" },
+      "amort_datum": { "name": "Przewidywana data zwrotu" },
+      "co2_ersparnis": { "name": "Zaoszczędzone CO2" },
+      "preis_fix": { "name": "Ustawiona cena energii" },
+      "preis_brutto": { "name": "Cena energii brutto" },
+      "preis_einspeisung": { "name": "Aktualna cena sprzedaży" },
+      "amort_kosten": { "name": "Koszt instalacji PV" },
+      "konfiguration": { "name": "Status Konfiguracji" },
+      "tages_einspeisung": { "name": "Dzisiejsza sprzedaż (PLN)" },
+      "tages_netzbezug": { "name": "Dzisiejszy pobór (PLN)" },
+      "tages_stromkosten": { "name": "Bilans kosztów dzisiaj" },
+      "kontingent_verbleibend": { "name": "Limit zużycia - Pozostało" },
+      "kontingent_verbrauch": { "name": "Limit zużycia - Wykorzystano" },
+      "kontingent_reserve": { "name": "Limit zużycia - Rezerwa" },
+      "kontingent_tagesbudget": { "name": "Limit zużycia - Dzienny budżet" },
+      "kontingent_prognose": { "name": "Limit zużycia - Prognoza" },
+      "kontingent_restlaufzeit": { "name": "Limit zużycia - Dni do końca" },
+      "kontingent_heute_verbleibend": { "name": "Budżet na dzisiaj - Pozostało" },
+      "kontingent_status": { "name": "Status Limitu Zużycia" },
+      "ladestand": { "name": "Poziom Baterii (SOC)" },
+      "ladung_gesamt": { "name": "Ładowanie Baterii (Suma)" },
+      "entladung_gesamt": { "name": "Rozładowanie Baterii (Suma)" },
+      "effizienz": { "name": "Sprawność Baterii" },
+      "zyklen": { "name": "Cykle Baterii" },
+      "roi": { "name": "Zwrot z Inwestycji (ROI)" },
+      "roi_pro_jahr": { "name": "Roczny ROI" },
+      "haus_durchschnitt": { "name": "Benchmark - Średnia w kraju" },
+      "gesamtverbrauch": { "name": "Benchmark - Całkowite zużycie" },
+      "haus_verbrauch": { "name": "Benchmark - Zużycie domowe" },
+      "netz_bezug": { "name": "Benchmark - Roczny pobór (prognoza)" },
+      "pv_produktion_benchmark": { "name": "Benchmark - Roczna produkcja" },
+      "pv_ertrag": { "name": "Specyficzny Ertrag (Wydajność)" },
+      "haus_vergleich": { "name": "Benchmark - Porównanie (%)" },
+      "pv_co2_vermieden": { "name": "Benchmark - Uniknięte CO2" },
+      "effizienz_score": { "name": "Ocena Systemu (Score)" },
+      "bewertung": { "name": "Status Systemu" },
+      "wp_durchschnitt": { "name": "Pompa Ciepła - Średnia w kraju" },
+      "wp_verbrauch": { "name": "Pompa Ciepła - Roczne zużycie" },
+      "wp_vergleich": { "name": "Pompa Ciepła - Porównanie" },
+      "gesamt_tagesproduktion": { "name": "Dzienna produkcja - Suma" },
+      "gesamt_peak": { "name": "Moc Szczytowa - Rekord" },
+      "gesamt_peak_heute": { "name": "Moc Szczytowa - Dzisiaj" }
+    }
+  }
+}
