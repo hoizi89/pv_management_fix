@@ -65,16 +65,16 @@ class PVManagementFixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 # === ENERGIE-SENSOREN ===
                 vol.Required(CONF_PV_PRODUCTION_ENTITY): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
+                    selector.EntitySelectorConfig(domain="sensor", device_class="energy")
                 ),
                 vol.Optional(CONF_GRID_EXPORT_ENTITY): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
+                    selector.EntitySelectorConfig(domain="sensor", device_class="energy")
                 ),
                 vol.Optional(CONF_GRID_IMPORT_ENTITY): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
+                    selector.EntitySelectorConfig(domain="sensor", device_class="energy")
                 ),
                 vol.Optional(CONF_CONSUMPTION_ENTITY): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
+                    selector.EntitySelectorConfig(domain="sensor", device_class="energy")
                 ),
 
                 # === FIXPREIS ===
@@ -239,13 +239,13 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
             step_id="sensors",
             data_schema=vol.Schema({
                 vol.Required(CONF_PV_PRODUCTION_ENTITY, default=self._get_val(CONF_PV_PRODUCTION_ENTITY)):
-                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
                 self._optional_entity(CONF_GRID_EXPORT_ENTITY):
-                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
                 self._optional_entity(CONF_GRID_IMPORT_ENTITY):
-                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
                 self._optional_entity(CONF_CONSUMPTION_ENTITY):
-                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
             })
         )
 
@@ -457,11 +457,11 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
             step_id="battery",
             data_schema=vol.Schema({
                 self._optional_entity(CONF_BATTERY_SOC_ENTITY):
-                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="battery")),
                 self._optional_entity(CONF_BATTERY_CHARGE_ENTITY):
-                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
                 self._optional_entity(CONF_BATTERY_DISCHARGE_ENTITY):
-                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
                 vol.Required(CONF_BATTERY_CAPACITY, default=self._get_val(CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY)):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(
@@ -509,7 +509,7 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(CONF_BENCHMARK_HEATPUMP, default=self._get_val(CONF_BENCHMARK_HEATPUMP, DEFAULT_BENCHMARK_HEATPUMP)):
                     selector.BooleanSelector(),
                 self._optional_entity(CONF_BENCHMARK_HEATPUMP_ENTITY):
-                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
             })
         )
 
@@ -533,17 +533,17 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
             entity_val = self._get_val(entity_key)
             if entity_val:
                 schema[vol.Optional(entity_key, default=entity_val)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor"))
+                    selector.EntitySelectorConfig(domain="sensor", device_class="energy"))
             else:
                 schema[vol.Optional(entity_key)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor"))
+                    selector.EntitySelectorConfig(domain="sensor", device_class="energy"))
             power_val = self._get_val(power_key)
             if power_val:
                 schema[vol.Optional(power_key, default=power_val)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor"))
+                    selector.EntitySelectorConfig(domain="sensor", device_class="power"))
             else:
                 schema[vol.Optional(power_key)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor"))
+                    selector.EntitySelectorConfig(domain="sensor", device_class="power"))
             schema[vol.Optional(kwp_key, default=self._get_val(kwp_key, 0.0))] = selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0.0, max=50.0, step=0.01, unit_of_measurement="kWp", mode="box"))
 
