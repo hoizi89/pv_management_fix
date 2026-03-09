@@ -1554,12 +1554,6 @@ class BatteryCyclesSensor(BaseEntity):
             return None
         return round(val, 1)
 
-    @property
-    def extra_state_attributes(self) -> dict:
-        return {
-            "capacity_kwh": self.ctrl.battery_capacity,
-        }
-
 
 # =============================================================================
 # ROI SENSORS
@@ -1585,14 +1579,6 @@ class ROISensor(BaseEntity):
         if val is None:
             return None
         return round(val, 2)
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        return {
-            "is_amortised": self.ctrl.is_amortised,
-            "total_savings_eur": round(self.ctrl.total_savings, 2),
-            "installation_cost_eur": round(self.ctrl.installation_cost, 2),
-        }
 
 
 class AnnualROISensor(BaseEntity):
