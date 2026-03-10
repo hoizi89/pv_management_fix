@@ -86,15 +86,9 @@ async def async_setup_entry(
         EstimatedPaybackDateSensor(ctrl, name),
         EstimatedRemainingDaysSensor(ctrl, name),
 
-        # === ENERGY ===
-        SelfConsumptionSensor(ctrl, name),
-        FeedInSensor(ctrl, name),
+        # === ENERGY (requires export sensor for meaningful values) ===
         SelfConsumptionRatioSensor(ctrl, name),
         AutarkyRateSensor(ctrl, name),
-
-        # === FINANCIAL ===
-        SavingsSelfConsumptionSensor(ctrl, name),
-        EarningsFeedInSensor(ctrl, name),
 
         # === STATISTICS ===
         AverageDailySavingsSensor(ctrl, name),
@@ -114,14 +108,26 @@ async def async_setup_entry(
         ConfigurationDiagnosticSensor(ctrl, name, entry),
 
         # === DAILY ELECTRICITY COSTS ===
-        DailyFeedInSensor(ctrl, name),
-        DailyGridImportSensor(ctrl, name),
         DailyNetElectricityCostSensor(ctrl, name),
 
         # === ROI ===
         ROISensor(ctrl, name),
         AnnualROISensor(ctrl, name),
     ]
+
+    # === EXPORT-DEPENDENT SENSORS (only if grid export sensor configured) ===
+    if ctrl.grid_export_entity:
+        entities.extend([
+            SelfConsumptionSensor(ctrl, name),
+            FeedInSensor(ctrl, name),
+            SavingsSelfConsumptionSensor(ctrl, name),
+            EarningsFeedInSensor(ctrl, name),
+            DailyFeedInSensor(ctrl, name),
+        ])
+
+    # === GRID-IMPORT-DEPENDENT SENSORS ===
+    if ctrl.grid_import_entity:
+        entities.append(DailyGridImportSensor(ctrl, name))
 
     # === ELECTRICITY QUOTA (only if enabled) ===
     if ctrl.quota_enabled:
