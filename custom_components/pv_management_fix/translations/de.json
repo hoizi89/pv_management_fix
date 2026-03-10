@@ -25,10 +25,10 @@
         },
         "data_description": {
           "name": "Name für diese PV-Anlage",
-          "pv_production_entity": "Sensor der die gesamte PV-Produktion in kWh misst",
-          "grid_export_entity": "Sensor für Netzeinspeisung in kWh (für Einnahmenberechnung)",
-          "grid_import_entity": "Sensor für Netzbezug in kWh (für Spot-Vergleich)",
-          "consumption_entity": "Sensor für Gesamtverbrauch des Haushalts in kWh",
+          "pv_production_entity": "Stetig steigender Energiezähler (kWh) der PV-Anlage. Hast du nur einen Leistungssensor (W)? Dann erst Riemann-Integral-Helfer anlegen (W → kWh).",
+          "grid_export_entity": "Stetig steigender Energiezähler (kWh) für Netzeinspeisung. Für Einnahmenberechnung.",
+          "grid_import_entity": "Stetig steigender Energiezähler (kWh) für Netzbezug.",
+          "consumption_entity": "Stetig steigender Energiezähler (kWh) für den Gesamtverbrauch des Haushalts.",
           "fixed_price": "Arbeitspreis netto vom Anbieter (z.B. 12.55 ct/kWh). Steht auf der Rechnung unter 'Energieentgelte'.",
           "grid_fee": "Pro kWh — Netznutzung + Netzverlustentgelt von der Rechnung (z.B. 6.78 ct/kWh). Bei 0 wird stattdessen der Aufschlagfaktor verwendet.",
           "taxes_levies": "Pro kWh — Elektrizitätsabgabe + EAG-Förderbeiträge (z.B. 2.43 ct/kWh). Steht auf der Rechnung unter 'Steuern und Abgaben'.",
@@ -78,10 +78,10 @@
           "consumption_entity": "Hausverbrauch Sensor (kWh)"
         },
         "data_description": {
-          "pv_production_entity": "Gesamt-kWh Zähler der PV-Anlage",
-          "grid_export_entity": "Gesamt-kWh Zähler Netzeinspeisung",
-          "grid_import_entity": "Gesamt-kWh Zähler Netzbezug",
-          "consumption_entity": "Gesamt-kWh Zähler Hausverbrauch"
+          "pv_production_entity": "Stetig steigender Energiezähler (kWh). Bei Leistungssensor (W): Erst Riemann-Integral-Helfer anlegen.",
+          "grid_export_entity": "Stetig steigender Energiezähler (kWh) für Netzeinspeisung.",
+          "grid_import_entity": "Stetig steigender Energiezähler (kWh) für Netzbezug.",
+          "consumption_entity": "Stetig steigender Energiezähler (kWh) für Hausverbrauch."
         }
       },
       "prices": {
@@ -157,8 +157,8 @@
         },
         "data_description": {
           "battery_soc_entity": "Sensor für den Batterie-Ladestand in Prozent (z.B. sensor.battery_state_of_charge)",
-          "battery_charge_entity": "Sensor für die gesamte Batterie-Ladung in kWh (z.B. sensor.total_battery_charge)",
-          "battery_discharge_entity": "Sensor für die gesamte Batterie-Entladung in kWh (z.B. sensor.total_battery_discharge)",
+          "battery_charge_entity": "Stetig steigender Energiezähler (kWh) für Batterie-Ladung. Bei Leistungssensor (W): Erst Riemann-Integral-Helfer anlegen.",
+          "battery_discharge_entity": "Stetig steigender Energiezähler (kWh) für Batterie-Entladung. Bei Leistungssensor (W): Erst Riemann-Integral-Helfer anlegen.",
           "battery_capacity": "Nutzbare Kapazität des Batteriespeichers in kWh"
         }
       },

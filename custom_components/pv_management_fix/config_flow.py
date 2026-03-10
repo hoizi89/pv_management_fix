@@ -77,11 +77,11 @@ class PVManagementFixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.EntitySelectorConfig(domain="sensor", device_class="energy")
                 ),
 
-                # === FIXPREIS ===
-                vol.Required(CONF_FIXED_PRICE, default=DEFAULT_FIXED_PRICE):
+                # === FIXPREIS (Fallback wenn kein Sensor) ===
+                vol.Optional(CONF_FIXED_PRICE, default=DEFAULT_FIXED_PRICE):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(
-                            min=1.0, max=100.0, step=0.01,
+                            min=0.0, max=100.0, step=0.01,
                             unit_of_measurement="ct/kWh",
                             mode=selector.NumberSelectorMode.BOX,
                         )
@@ -265,11 +265,11 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="prices",
             data_schema=vol.Schema({
-                # Fixpreis (Haupteinstellung)
-                vol.Required(CONF_FIXED_PRICE, default=self._get_val(CONF_FIXED_PRICE, DEFAULT_FIXED_PRICE)):
+                # Fixpreis (Fallback wenn kein Sensor)
+                vol.Optional(CONF_FIXED_PRICE, default=self._get_val(CONF_FIXED_PRICE, DEFAULT_FIXED_PRICE)):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(
-                            min=1.0, max=100.0, step=0.01,
+                            min=0.0, max=100.0, step=0.01,
                             unit_of_measurement="ct/kWh",
                             mode=selector.NumberSelectorMode.BOX
                         )

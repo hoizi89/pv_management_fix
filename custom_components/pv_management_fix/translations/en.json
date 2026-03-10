@@ -25,10 +25,10 @@
         },
         "data_description": {
           "name": "Name for this PV system",
-          "pv_production_entity": "Sensor measuring total PV production in kWh",
-          "grid_export_entity": "Sensor for grid export in kWh (for earnings calculation)",
-          "grid_import_entity": "Sensor for grid import in kWh (for spot comparison)",
-          "consumption_entity": "Sensor for total household consumption in kWh",
+          "pv_production_entity": "Ever-increasing energy counter (kWh) of your PV system. Only have a power sensor (W)? Create a Riemann integral helper first (W → kWh).",
+          "grid_export_entity": "Ever-increasing energy counter (kWh) for grid export. For earnings calculation.",
+          "grid_import_entity": "Ever-increasing energy counter (kWh) for grid import.",
+          "consumption_entity": "Ever-increasing energy counter (kWh) for total household consumption.",
           "fixed_price": "Net energy price from provider (e.g., 12.55 ct/kWh). Found on bill under 'Energy charges'.",
           "grid_fee": "Per kWh — Grid usage + grid loss fee from your bill (e.g. 6.78 ct/kWh). Leave at 0 to use markup factor instead.",
           "taxes_levies": "Per kWh — Electricity tax + renewable levies from your bill (e.g. 2.43 ct/kWh).",
@@ -78,10 +78,10 @@
           "consumption_entity": "Consumption Sensor (kWh)"
         },
         "data_description": {
-          "pv_production_entity": "Total kWh counter of PV system",
-          "grid_export_entity": "Total kWh counter for grid export",
-          "grid_import_entity": "Total kWh counter for grid import",
-          "consumption_entity": "Total kWh counter for household consumption"
+          "pv_production_entity": "Ever-increasing energy counter (kWh). For power sensors (W): Create a Riemann integral helper first.",
+          "grid_export_entity": "Ever-increasing energy counter (kWh) for grid export.",
+          "grid_import_entity": "Ever-increasing energy counter (kWh) for grid import.",
+          "consumption_entity": "Ever-increasing energy counter (kWh) for household consumption."
         }
       },
       "prices": {
@@ -157,8 +157,8 @@
         },
         "data_description": {
           "battery_soc_entity": "Sensor for battery state of charge in percent (e.g. sensor.battery_state_of_charge)",
-          "battery_charge_entity": "Sensor for total battery charge in kWh (e.g. sensor.total_battery_charge)",
-          "battery_discharge_entity": "Sensor for total battery discharge in kWh (e.g. sensor.total_battery_discharge)",
+          "battery_charge_entity": "Ever-increasing energy counter (kWh) for battery charge. For power sensors (W): Create a Riemann integral helper first.",
+          "battery_discharge_entity": "Ever-increasing energy counter (kWh) for battery discharge. For power sensors (W): Create a Riemann integral helper first.",
           "battery_capacity": "Usable capacity of battery storage in kWh"
         }
       },
