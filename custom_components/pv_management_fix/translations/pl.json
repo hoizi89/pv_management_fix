@@ -7,8 +7,8 @@
         "data": {
           "name": "Nazwa instalacji",
           "pv_production_entity": "Sensor Produkcji PV (kWh)",
-          "grid_export_entity": "Sensor Eksportu do sieci (kWh, opcjonalnie)",
-          "grid_import_entity": "Sensor Poboru z sieci (kWh, opcjonalnie)",
+          "grid_export_entity": "Sensor Eksportu do sieci (kWh)",
+          "grid_import_entity": "Sensor Poboru z sieci (kWh)",
           "consumption_entity": "Sensor Zużycia domowego (kWh, opcjonalnie)",
           "fixed_price": "Cena energii netto (gr/kWh)",
           "grid_fee": "Opłata sieciowa (gr/kWh)",

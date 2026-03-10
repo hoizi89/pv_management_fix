@@ -7,8 +7,8 @@
         "data": {
           "name": "Name",
           "pv_production_entity": "PV Produktion Sensor (kWh)",
-          "grid_export_entity": "Netzeinspeisung Sensor (kWh, optional)",
-          "grid_import_entity": "Netzbezug Sensor (kWh, optional)",
+          "grid_export_entity": "Netzeinspeisung Sensor (kWh)",
+          "grid_import_entity": "Netzbezug Sensor (kWh)",
           "consumption_entity": "Hausverbrauch Sensor (kWh, optional)",
           "fixed_price": "Arbeitspreis netto (ct/kWh)",
           "grid_fee": "Netzentgelt (ct/kWh)",

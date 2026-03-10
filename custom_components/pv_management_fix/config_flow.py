@@ -67,10 +67,10 @@ class PVManagementFixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_PV_PRODUCTION_ENTITY): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="energy")
                 ),
-                vol.Optional(CONF_GRID_EXPORT_ENTITY): selector.EntitySelector(
+                vol.Required(CONF_GRID_EXPORT_ENTITY): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="energy")
                 ),
-                vol.Optional(CONF_GRID_IMPORT_ENTITY): selector.EntitySelector(
+                vol.Required(CONF_GRID_IMPORT_ENTITY): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="energy")
                 ),
                 vol.Optional(CONF_CONSUMPTION_ENTITY): selector.EntitySelector(

@@ -7,8 +7,8 @@
         "data": {
           "name": "Name",
           "pv_production_entity": "PV Production Sensor (kWh)",
-          "grid_export_entity": "Grid Export Sensor (kWh, optional)",
-          "grid_import_entity": "Grid Import Sensor (kWh, optional)",
+          "grid_export_entity": "Grid Export Sensor (kWh)",
+          "grid_import_entity": "Grid Import Sensor (kWh)",
           "consumption_entity": "Consumption Sensor (kWh, optional)",
           "fixed_price": "Energy Price net (ct/kWh)",
           "grid_fee": "Grid Fee (ct/kWh)",
