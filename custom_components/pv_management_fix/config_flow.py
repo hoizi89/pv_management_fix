@@ -250,10 +250,10 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
         )
 
     def _optional_entity(self, key):
-        """Erstellt vol.Optional für Entity-Selector (ohne default=None, da HA das nicht mag)."""
+        """Erstellt vol.Optional für Entity-Selector mit suggested_value (erlaubt Löschen)."""
         val = self._get_val(key)
         if val:
-            return vol.Optional(key, default=val)
+            return vol.Optional(key, description={"suggested_value": val})
         return vol.Optional(key)
 
     async def async_step_prices(self, user_input=None):
@@ -531,19 +531,13 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
         ], 1):
             schema[vol.Optional(name_key, default=self._get_val(name_key, ""))] = selector.TextSelector()
             entity_val = self._get_val(entity_key)
-            if entity_val:
-                schema[vol.Optional(entity_key, default=entity_val)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="energy"))
-            else:
-                schema[vol.Optional(entity_key)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="energy"))
+            entity_schema = vol.Optional(entity_key, description={"suggested_value": entity_val}) if entity_val else vol.Optional(entity_key)
+            schema[entity_schema] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor", device_class="energy"))
             power_val = self._get_val(power_key)
-            if power_val:
-                schema[vol.Optional(power_key, default=power_val)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="power"))
-            else:
-                schema[vol.Optional(power_key)] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="power"))
+            power_schema = vol.Optional(power_key, description={"suggested_value": power_val}) if power_val else vol.Optional(power_key)
+            schema[power_schema] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor", device_class="power"))
             schema[vol.Optional(kwp_key, default=self._get_val(kwp_key, 0.0))] = selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0.0, max=50.0, step=0.01, unit_of_measurement="kWp", mode="box"))
 
