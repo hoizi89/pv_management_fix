@@ -326,13 +326,13 @@ class PVManagementFixController:
 
     @property
     def self_consumption_kwh(self) -> float:
-        """Gesamter Eigenverbrauch (inkrementell + Offset)."""
-        return self._total_self_consumption_kwh + self.energy_offset_self
+        """Gesamter Eigenverbrauch (inkrementell berechnet)."""
+        return self._total_self_consumption_kwh
 
     @property
     def feed_in_kwh(self) -> float:
-        """Gesamte Einspeisung (inkrementell + Offset)."""
-        return self._total_feed_in_kwh + self.energy_offset_export
+        """Gesamte Einspeisung (inkrementell berechnet)."""
+        return self._total_feed_in_kwh
 
     @property
     def tracked_grid_import_kwh(self) -> float:
@@ -595,23 +595,20 @@ class PVManagementFixController:
     @property
     def self_consumption_ratio(self) -> float:
         """Eigenverbrauchsquote (%) - Anteil der PV-Produktion der selbst verbraucht wird."""
-        if self._pv_production_kwh <= 0:
+        total_pv = self._total_self_consumption_kwh + self._total_feed_in_kwh
+        if total_pv <= 0:
             return 0.0
-        return min(100.0, (self._current_self_consumption_kwh / self._pv_production_kwh) * 100)
+        return min(100.0, (self._total_self_consumption_kwh / total_pv) * 100)
 
     @property
     def autarky_rate(self) -> float | None:
         """Autarkiegrad (%) - Anteil des Verbrauchs der durch PV gedeckt wird."""
-        self_consumption = self._current_self_consumption_kwh
-        if self_consumption <= 0:
+        if self._total_self_consumption_kwh <= 0:
             return None
-        if self.consumption_entity and self._consumption_kwh > 0:
-            return min(100.0, (self_consumption / self._consumption_kwh) * 100)
-        if self.grid_import_entity and self._grid_import_kwh > 0:
-            total_consumption = self_consumption + self._grid_import_kwh
-            if total_consumption > 0:
-                return min(100.0, (self_consumption / total_consumption) * 100)
-        return None
+        total_consumption = self._total_self_consumption_kwh + self._tracked_grid_import_kwh
+        if total_consumption <= 0:
+            return None
+        return min(100.0, (self._total_self_consumption_kwh / total_consumption) * 100)
 
     @property
     def co2_saved_kg(self) -> float:
