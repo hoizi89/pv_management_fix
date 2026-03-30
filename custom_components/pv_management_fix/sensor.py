@@ -934,7 +934,7 @@ class FixedPriceSensor(BaseEntity):
 
     @property
     def native_value(self) -> float:
-        return round(self.ctrl.fixed_price_ct, 2)
+        return round(self.ctrl.current_electricity_price * 100, 2)
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -947,6 +947,7 @@ class FixedPriceSensor(BaseEntity):
             attrs["vat_percent"] = self.ctrl.vat_percent
         else:
             attrs["markup_factor"] = self.ctrl.markup_factor
+        attrs["source"] = "sensor" if self.ctrl.electricity_price_entity else "config"
         return attrs
 
 
@@ -971,7 +972,7 @@ class GrossPriceSensor(BaseEntity):
     @property
     def extra_state_attributes(self) -> dict:
         attrs = {
-            "net_price_ct": round(self.ctrl.fixed_price_ct, 2),
+            "net_price_ct": round(self.ctrl.current_electricity_price * 100, 2),
             "gross_price_ct": round(self.ctrl.gross_price_ct, 2),
         }
         if self.ctrl.has_itemized_costs:
