@@ -98,7 +98,8 @@
           "feed_in_tariff": "Feed-in tariff — Fallback",
           "feed_in_tariff_entity": "Feed-in tariff via sensor (optional)",
           "installation_cost": "PV system installation cost",
-          "installation_date": "Installation date"
+          "installation_date": "Installation date",
+          "yearly_cost": "Yearly cost"
         },
         "data_description": {
           "fixed_price": "Static net energy price. Only used when NO sensor is selected.",
@@ -111,7 +112,8 @@
           "feed_in_tariff": "Static feed-in tariff. Only used when NO sensor is selected.",
           "feed_in_tariff_entity": "Sensor or input_number for current feed-in tariff (e.g. market price). Overrides the static value above. Unit (ct/EUR) auto-detected.",
           "installation_cost": "Total cost of PV system (for amortization calculation)",
-          "installation_date": "For statistics and forecasts"
+          "installation_date": "For statistics and forecasts",
+          "yearly_cost": "Yearly costs like insurance, maintenance etc. Deducted from amortization calculation."
         }
       },
       "offsets": {
@@ -170,13 +172,15 @@
           "benchmark_country": "Country",
           "benchmark_household_size": "Household size (persons)",
           "benchmark_heatpump": "Heat pump present",
-          "benchmark_heatpump_entity": "Heat pump energy sensor (kWh)"
+          "benchmark_heatpump_entity": "Heat pump energy sensor (kWh)",
+          "benchmark_heatpump_date": "Heat pump commissioning date"
         },
         "data_description": {
           "benchmark_country": "Reference data: E-Control (AT), BDEW (DE), BFE (CH)",
           "benchmark_household_size": "Number of persons in household",
           "benchmark_heatpump": "When active, heat pump consumption is benchmarked separately",
-          "benchmark_heatpump_entity": "Total kWh counter of heat pump (optional, for fair comparison)"
+          "benchmark_heatpump_entity": "Total kWh counter of heat pump (optional, for fair comparison)",
+          "benchmark_heatpump_date": "When the heat pump was commissioned. If set, the total sensor value is divided by operating days for accurate yearly values."
         }
       },
       "pv_strings": {

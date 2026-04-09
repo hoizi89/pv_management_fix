@@ -47,6 +47,8 @@ CONF_VAT_PERCENT: Final[str] = "vat_percent"  # VAT (MwSt) in percent
 # --- Amortisation Helper Sync -------------------------------------------------
 CONF_AMORTISATION_HELPER: Final[str] = "amortisation_helper"
 CONF_RESTORE_FROM_HELPER: Final[str] = "restore_from_helper"
+CONF_YEARLY_COST: Final[str] = "yearly_cost"
+DEFAULT_YEARLY_COST: Final[float] = 0.0  # €/Jahr (z.B. Versicherung, Wartung)
 
 # --- Electricity quota (yearly kWh budget) ------------------------------------
 CONF_QUOTA_ENABLED: Final[str] = "quota_enabled"
@@ -136,6 +138,7 @@ DEFAULT_BENCHMARK_COUNTRY: Final[str] = "AT"
 # Heat pump (optional, for fair benchmark comparison)
 CONF_BENCHMARK_HEATPUMP: Final[str] = "benchmark_heatpump"
 CONF_BENCHMARK_HEATPUMP_ENTITY: Final[str] = "benchmark_heatpump_entity"
+CONF_BENCHMARK_HEATPUMP_DATE: Final[str] = "benchmark_heatpump_date"
 DEFAULT_BENCHMARK_HEATPUMP: Final[bool] = False
 
 # Average annual electricity consumption WITHOUT heat pump per household size (kWh/year)

@@ -92,7 +92,8 @@
           "feed_in_tariff": "Stawka odkupu — awaryjna",
           "feed_in_tariff_entity": "Stawka odkupu z sensora (opcjonalnie)",
           "installation_cost": "Koszt instalacji systemu PV",
-          "installation_date": "Data uruchomienia"
+          "installation_date": "Data uruchomienia",
+          "yearly_cost": "Koszty roczne"
         }
       },
       "offsets": {
@@ -133,11 +134,13 @@
           "benchmark_country": "Kraj",
           "benchmark_household_size": "Liczba osób w gospodarstwie",
           "benchmark_heatpump": "Posiadam pompę ciepła",
-          "benchmark_heatpump_entity": "Sensor zużycia pompy ciepła (kWh)"
+          "benchmark_heatpump_entity": "Sensor zużycia pompy ciepła (kWh)",
+          "benchmark_heatpump_date": "Data uruchomienia pompy ciepła"
         },
         "data_description": {
           "benchmark_country": "Dostępne kraje: PL, AT, DE, CH",
-          "benchmark_heatpump_entity": "Opcjonalnie: Licznik pompy w celu oddzielenia jej od zużycia domowego."
+          "benchmark_heatpump_entity": "Opcjonalnie: Licznik pompy w celu oddzielenia jej od zużycia domowego.",
+          "benchmark_heatpump_date": "Data uruchomienia pompy ciepła. Jeśli ustawiona, wartość sensora dzielona jest przez dni eksploatacji."
         }
       },
       "pv_strings": {

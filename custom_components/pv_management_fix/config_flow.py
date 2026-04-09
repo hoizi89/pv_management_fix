@@ -22,9 +22,10 @@ from .const import (
     CONF_BATTERY_SOC_ENTITY, CONF_BATTERY_CHARGE_ENTITY,
     CONF_BATTERY_DISCHARGE_ENTITY, CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY,
     CONF_BENCHMARK_ENABLED, CONF_BENCHMARK_HOUSEHOLD_SIZE, CONF_BENCHMARK_COUNTRY,
-    CONF_BENCHMARK_HEATPUMP, CONF_BENCHMARK_HEATPUMP_ENTITY,
+    CONF_BENCHMARK_HEATPUMP, CONF_BENCHMARK_HEATPUMP_ENTITY, CONF_BENCHMARK_HEATPUMP_DATE,
     DEFAULT_BENCHMARK_ENABLED, DEFAULT_BENCHMARK_HOUSEHOLD_SIZE, DEFAULT_BENCHMARK_COUNTRY,
     DEFAULT_BENCHMARK_HEATPUMP,
+    CONF_YEARLY_COST, DEFAULT_YEARLY_COST,
     RANGE_BATTERY_CAPACITY, RANGE_HOUSEHOLD_SIZE,
     DEFAULT_NAME, DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET, DEFAULT_FIXED_PRICE, DEFAULT_MARKUP_FACTOR,
@@ -350,6 +351,15 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                     ),
                 vol.Optional(CONF_INSTALLATION_DATE, default=self._get_val(CONF_INSTALLATION_DATE)):
                     selector.DateSelector(),
+
+                # Jährliche Kosten (Versicherung, Wartung etc.)
+                vol.Optional(CONF_YEARLY_COST, default=self._get_val(CONF_YEARLY_COST, DEFAULT_YEARLY_COST)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0.0, max=5000.0, step=1.0,
+                            unit_of_measurement="€/Jahr", mode=selector.NumberSelectorMode.BOX
+                        )
+                    ),
             })
         )
 
@@ -510,6 +520,8 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                     selector.BooleanSelector(),
                 self._optional_entity(CONF_BENCHMARK_HEATPUMP_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
+                vol.Optional(CONF_BENCHMARK_HEATPUMP_DATE, default=self._get_val(CONF_BENCHMARK_HEATPUMP_DATE)):
+                    selector.DateSelector(),
             })
         )
 

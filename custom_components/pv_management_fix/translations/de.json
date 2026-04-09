@@ -98,7 +98,8 @@
           "feed_in_tariff": "Einspeisevergütung — Fallback",
           "feed_in_tariff_entity": "Einspeisevergütung per Sensor (optional)",
           "installation_cost": "Anschaffungskosten PV-Anlage",
-          "installation_date": "Installationsdatum"
+          "installation_date": "Installationsdatum",
+          "yearly_cost": "Jährliche Kosten"
         },
         "data_description": {
           "fixed_price": "Statischer Arbeitspreis netto. Wird nur verwendet wenn KEIN Sensor ausgewählt ist.",
@@ -111,7 +112,8 @@
           "feed_in_tariff": "Statische Einspeisevergütung. Wird nur verwendet wenn KEIN Sensor ausgewählt ist.",
           "feed_in_tariff_entity": "Sensor oder input_number für die aktuelle Einspeisevergütung (z.B. OeMAG Marktpreis). Überschreibt den statischen Wert oben. Einheit (ct/EUR) wird automatisch erkannt.",
           "installation_cost": "Gesamtkosten der PV-Anlage (für Amortisationsrechnung)",
-          "installation_date": "Für Statistiken und Prognosen"
+          "installation_date": "Für Statistiken und Prognosen",
+          "yearly_cost": "Jährliche Kosten wie Versicherung, Wartung etc. Werden bei der Amortisation berücksichtigt."
         }
       },
       "offsets": {
@@ -170,13 +172,15 @@
           "benchmark_country": "Land",
           "benchmark_household_size": "Haushaltsgröße (Personen)",
           "benchmark_heatpump": "Wärmepumpe vorhanden",
-          "benchmark_heatpump_entity": "Wärmepumpe Energie-Sensor (kWh)"
+          "benchmark_heatpump_entity": "Wärmepumpe Energie-Sensor (kWh)",
+          "benchmark_heatpump_date": "Wärmepumpe Inbetriebnahme"
         },
         "data_description": {
           "benchmark_country": "Referenzdaten: E-Control (AT), BDEW (DE), BFE (CH)",
           "benchmark_household_size": "Anzahl Personen im Haushalt",
           "benchmark_heatpump": "Wenn aktiv wird der WP-Verbrauch separat benchmarkt",
-          "benchmark_heatpump_entity": "Gesamt-kWh Zähler der Wärmepumpe (optional, für fairen Vergleich)"
+          "benchmark_heatpump_entity": "Gesamt-kWh Zähler der Wärmepumpe (optional, für fairen Vergleich)",
+          "benchmark_heatpump_date": "Datum der WP-Inbetriebnahme. Wenn gesetzt, wird der Gesamt-Sensorwert durch die Betriebstage geteilt für genaue Jahreswerte."
         }
       },
       "pv_strings": {
