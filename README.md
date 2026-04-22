@@ -22,7 +22,76 @@
 | **ROI Calculation** | Return on Investment — before and after amortization |
 | **Daily Costs** | Grid import, feed-in, and net electricity cost per day |
 | **PV-Strings** | Compare up to 4 PV strings — production, peak power, efficiency (kWh/kWp) |
+| **Load Forecast** *(v2.0)* | 24×7 hour-of-day × day-of-week profile — predicts 1 h / 6 h / today / tomorrow / 24 h consumption |
 | **Notifications** | Milestones, quota warnings, monthly reports |
+
+---
+
+## New in v2.0.0: Load Forecast (24×7 Profile) 🆕
+
+Your house consumption follows a pattern — mornings, evenings, weekends differ. The integration now
+learns that pattern automatically and produces **5 new sensors** to drive battery / charge / discharge
+decisions alongside your solar forecast and dynamic prices.
+
+### How it works
+
+1. **Data source**: Your `consumption_entity` (house consumption kWh), pulled hourly from HA's built-in
+   `recorder.statistics_during_period` API — no external service, no ML model, no additional containers.
+2. **24×7 matrix**: for every combination of `(hour-of-day, weekday)` we keep a rolling window of
+   2 / 4 / 6 weeks (you choose) and take the mean of that cell.
+3. **Modal-drop** (on by default): per cell the single highest and single lowest value are thrown away
+   before averaging. This cleans out holidays, power-outages, one-off EV charges.
+4. **Optional subtraction**: if you configure a heat-pump or EV total-energy sensor they are subtracted
+   from the whole-house consumption before the matrix is built — you get a clean "base-load" forecast.
+5. **Graceful fallbacks**: <14 days of history → 7-day rolling mean. <3 days → persistence ("this
+   hour last week"). No history → sensors become `unavailable` instead of crashing.
+
+Typical accuracy (MAPE) for residential loads at 24 h horizon: **18–30%** — same ballpark as the
+algorithms inside Predbat / EMHASS, but with zero setup.
+
+### The 5 new sensors
+
+| Sensor | Returns | Typical use |
+|---|---|---|
+| `sensor.*_verbrauch_prognose_1h` | kWh expected next hour | Short-term battery dispatch |
+| `sensor.*_verbrauch_prognose_6h` | kWh over the next 6 h | Evening peak planning |
+| `sensor.*_verbrauch_prognose_heute_rest` | kWh from now until midnight | Rest-of-today budget |
+| `sensor.*_verbrauch_prognose_morgen` | kWh tomorrow (00:00 – 23:00) | Overnight charge decision |
+| `sensor.*_verbrauch_prognose_24h` | rolling 24 h from now | Main signal for charge logic |
+
+**Bonus**: the *Morgen* and *24h* sensors carry a `forecast_hourly` attribute (list of 24 values) —
+drop it into ApexCharts to get the Victron-style side-by-side "solar vs. load" bar chart shown in the
+feature request that inspired this. They also expose `confidence_low` / `confidence_high` (±1σ over
+the history window) so your automations can stay on the safe side.
+
+### How to enable
+
+`Settings → Devices → PV Energy Management+ → Configure → Load Forecast`
+
+1. Toggle **Enable load forecast** on.
+2. Pick **History window** — 4 weeks is the sweet spot.
+3. Leave **Filter outlier days** on unless you know why not.
+4. Optionally point **Heat pump** / **EV charger** to the respective total-energy sensors.
+
+The forecaster rebuilds once per hour in the background — it never blocks the event loop.
+
+> **Not available when**: no `consumption_entity` is configured. Set one under Options → Sensors first.
+
+### Attributes at a glance
+
+```yaml
+method: 24x7_profile        # or fallback_7d_mean / fallback_persistence / warming_up
+days_of_history: 28
+base_load_only: true        # true if HP/EV are subtracted
+last_update: '2026-04-22T07:00:00+00:00'
+forecast_hourly: [0.25, 0.23, 0.22, ..., 1.1, 0.9]  # 24 values (on Morgen/24h sensors)
+confidence_low: 18.4        # sum − 1σ
+confidence_high: 23.1       # sum + 1σ
+```
+
+Planned for a later release: a binary-sensor that combines this with Solcast + price for an explicit
+charge/discharge recommendation. For now you build that yourself via a template — the building blocks
+are here.
 
 ---
 

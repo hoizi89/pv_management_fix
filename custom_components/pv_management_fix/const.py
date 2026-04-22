@@ -169,6 +169,28 @@ BENCHMARK_CO2_FACTORS: Final[dict[str, float]] = {
 
 RANGE_HOUSEHOLD_SIZE: Final[dict] = {"min": 1, "max": 6, "step": 1}
 
+# --- Load Forecast (24x7 hour-of-day x day-of-week profile) -------------------
+CONF_FORECAST_ENABLED: Final[str] = "forecast_enabled"
+CONF_FORECAST_WEEKS: Final[str] = "forecast_weeks"
+CONF_FORECAST_MODAL_DROP: Final[str] = "forecast_modal_drop"
+CONF_FORECAST_HP_ENTITY: Final[str] = "forecast_hp_entity"
+CONF_FORECAST_EV_ENTITY: Final[str] = "forecast_ev_entity"
+
+DEFAULT_FORECAST_ENABLED: Final[bool] = False
+DEFAULT_FORECAST_WEEKS: Final[int] = 4  # 2 / 4 / 6 supported
+DEFAULT_FORECAST_MODAL_DROP: Final[bool] = True
+
+# Allowed discrete values for weeks selector
+FORECAST_WEEKS_CHOICES: Final[tuple[int, ...]] = (2, 4, 6)
+
+# Refresh cadence for the forecast matrix (seconds). 1h = enough for household patterns.
+FORECAST_REFRESH_SECONDS: Final[int] = 3600
+
+# Minimum days of history required for full 24x7 matrix mode; below, we fallback.
+FORECAST_MIN_DAYS_FULL: Final[int] = 14   # <14d => 7-day-mean fallback
+FORECAST_MIN_DAYS_ANY: Final[int] = 3     # <3d  => persistence fallback
+
+
 # --- PV Strings (comparison of multiple strings) -----------------------------
 CONF_PV_STRING_1_NAME: Final[str] = "pv_string_1_name"
 CONF_PV_STRING_1_ENTITY: Final[str] = "pv_string_1_entity"

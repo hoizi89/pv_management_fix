@@ -27,6 +27,9 @@ from .const import (
     CONF_BENCHMARK_HEATPUMP, CONF_BENCHMARK_HEATPUMP_ENTITY, CONF_BENCHMARK_HEATPUMP_DATE,
     DEFAULT_BENCHMARK_ENABLED, DEFAULT_BENCHMARK_HOUSEHOLD_SIZE, DEFAULT_BENCHMARK_COUNTRY,
     DEFAULT_BENCHMARK_HEATPUMP,
+    CONF_FORECAST_ENABLED, CONF_FORECAST_WEEKS, CONF_FORECAST_MODAL_DROP,
+    CONF_FORECAST_HP_ENTITY, CONF_FORECAST_EV_ENTITY,
+    DEFAULT_FORECAST_ENABLED, DEFAULT_FORECAST_WEEKS, DEFAULT_FORECAST_MODAL_DROP,
     BENCHMARK_CONSUMPTION, BENCHMARK_HEATPUMP_CONSUMPTION, BENCHMARK_CO2_FACTORS,
     DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
@@ -129,6 +132,9 @@ class PVManagementFixController:
         self._quota_day_start_meter: float = 0.0
         self._quota_day_start_date: date | None = None
 
+        # Load Forecast (optional, 24x7 Profile)
+        self.forecaster = None  # LoadForecaster | None
+
         # PV-String Delta-Tracking
         self._string_last_kwh: dict[str, float | None] = {}
         self._string_tracked_kwh: dict[str, float] = {}
@@ -208,6 +214,13 @@ class PVManagementFixController:
         self.benchmark_heatpump = opts.get(CONF_BENCHMARK_HEATPUMP, DEFAULT_BENCHMARK_HEATPUMP)
         self.benchmark_heatpump_entity = opts.get(CONF_BENCHMARK_HEATPUMP_ENTITY)
         self.benchmark_heatpump_date = opts.get(CONF_BENCHMARK_HEATPUMP_DATE)
+
+        # Load Forecast
+        self.forecast_enabled = opts.get(CONF_FORECAST_ENABLED, DEFAULT_FORECAST_ENABLED)
+        self.forecast_weeks = opts.get(CONF_FORECAST_WEEKS, DEFAULT_FORECAST_WEEKS)
+        self.forecast_modal_drop = opts.get(CONF_FORECAST_MODAL_DROP, DEFAULT_FORECAST_MODAL_DROP)
+        self.forecast_hp_entity = opts.get(CONF_FORECAST_HP_ENTITY)
+        self.forecast_ev_entity = opts.get(CONF_FORECAST_EV_ENTITY)
 
         # PV-Strings
         self.pv_strings = []  # list of (name, energy_entity_id, power_entity_id_or_None)
@@ -1866,6 +1879,29 @@ class PVManagementFixController:
             self.hass.bus.async_listen(EVENT_STATE_CHANGED, state_listener)
         )
 
+        # --- Load Forecast (24x7 profile) — nur wenn aktiviert + Verbrauchs-Entity da ist
+        if self.forecast_enabled and self.consumption_entity:
+            try:
+                from .forecast import LoadForecaster
+                self.forecaster = LoadForecaster(
+                    hass=self.hass,
+                    consumption_entity=self.consumption_entity,
+                    hp_entity=self.forecast_hp_entity,
+                    ev_entity=self.forecast_ev_entity,
+                    weeks=int(self.forecast_weeks),
+                    modal_drop=bool(self.forecast_modal_drop),
+                    on_update=self._notify_entities,
+                )
+                await self.forecaster.async_start()
+                _LOGGER.info(
+                    "LoadForecaster gestartet: weeks=%s modal_drop=%s hp=%s ev=%s",
+                    self.forecast_weeks, self.forecast_modal_drop,
+                    self.forecast_hp_entity, self.forecast_ev_entity,
+                )
+            except Exception as e:
+                _LOGGER.warning("LoadForecaster konnte nicht gestartet werden: %s", e)
+                self.forecaster = None
+
         self._notify_entities()
 
     async def async_stop(self) -> None:
@@ -1874,6 +1910,12 @@ class PVManagementFixController:
             remove()
         self._remove_listeners.clear()
         self._entity_listeners.clear()
+        if self.forecaster is not None:
+            try:
+                await self.forecaster.async_stop()
+            except Exception as e:
+                _LOGGER.debug("Forecaster-Stop Fehler (ignoriert): %s", e)
+            self.forecaster = None
 
     def reset_grid_import_tracking(self) -> None:
         """Setzt das Strompreis-Tracking auf 0 zurück."""
@@ -1970,6 +2012,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 old_batt_discharge = ctrl.battery_discharge_entity
                 old_benchmark = ctrl.benchmark_enabled
                 old_benchmark_hp = ctrl.benchmark_heatpump
+                old_forecast = ctrl.forecast_enabled
 
                 opts = {**entry.data, **entry.options}
                 new_quota = opts.get(CONF_QUOTA_ENABLED, DEFAULT_QUOTA_ENABLED)
@@ -1978,6 +2021,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 new_batt_discharge = opts.get(CONF_BATTERY_DISCHARGE_ENTITY)
                 new_benchmark = opts.get(CONF_BENCHMARK_ENABLED, DEFAULT_BENCHMARK_ENABLED)
                 new_benchmark_hp = opts.get(CONF_BENCHMARK_HEATPUMP, DEFAULT_BENCHMARK_HEATPUMP)
+                new_forecast = opts.get(CONF_FORECAST_ENABLED, DEFAULT_FORECAST_ENABLED)
 
                 needs_reload = (
                     old_quota != new_quota
@@ -1986,6 +2030,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                     or old_batt_discharge != new_batt_discharge
                     or old_benchmark != new_benchmark
                     or old_benchmark_hp != new_benchmark_hp
+                    or old_forecast != new_forecast
                 )
 
                 if needs_reload:

@@ -25,6 +25,10 @@ from .const import (
     CONF_BENCHMARK_HEATPUMP, CONF_BENCHMARK_HEATPUMP_ENTITY, CONF_BENCHMARK_HEATPUMP_DATE,
     DEFAULT_BENCHMARK_ENABLED, DEFAULT_BENCHMARK_HOUSEHOLD_SIZE, DEFAULT_BENCHMARK_COUNTRY,
     DEFAULT_BENCHMARK_HEATPUMP,
+    CONF_FORECAST_ENABLED, CONF_FORECAST_WEEKS, CONF_FORECAST_MODAL_DROP,
+    CONF_FORECAST_HP_ENTITY, CONF_FORECAST_EV_ENTITY,
+    DEFAULT_FORECAST_ENABLED, DEFAULT_FORECAST_WEEKS, DEFAULT_FORECAST_MODAL_DROP,
+    FORECAST_WEEKS_CHOICES,
     CONF_YEARLY_COST, DEFAULT_YEARLY_COST,
     RANGE_BATTERY_CAPACITY, RANGE_HOUSEHOLD_SIZE,
     DEFAULT_NAME, DEFAULT_ELECTRICITY_PRICE, DEFAULT_FEED_IN_TARIFF,
@@ -208,6 +212,7 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                 "battery": "Batterie",
                 "benchmark": "Energie-Benchmark",
                 "pv_strings": "PV-Strings",
+                "forecast": "Lastvorhersage",
                 "reset": "Zurücksetzen",
             },
         )
@@ -556,6 +561,56 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="pv_strings",
             data_schema=vol.Schema(schema)
+        )
+
+    async def async_step_forecast(self, user_input=None):
+        """Lastvorhersage (24×7 Profile) konfigurieren."""
+        if user_input is not None:
+            return await self._save_and_return_to_menu(
+                user_input,
+                optional_entity_keys=(CONF_FORECAST_HP_ENTITY, CONF_FORECAST_EV_ENTITY),
+            )
+
+        return self.async_show_form(
+            step_id="forecast",
+            data_schema=vol.Schema({
+                vol.Required(
+                    CONF_FORECAST_ENABLED,
+                    default=self._get_val(CONF_FORECAST_ENABLED, DEFAULT_FORECAST_ENABLED),
+                ): selector.BooleanSelector(),
+                vol.Required(
+                    CONF_FORECAST_WEEKS,
+                    default=str(self._get_val(CONF_FORECAST_WEEKS, DEFAULT_FORECAST_WEEKS)),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            selector.SelectOptionDict(value=str(w), label=f"{w} Wochen")
+                            for w in FORECAST_WEEKS_CHOICES
+                        ],
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+                vol.Required(
+                    CONF_FORECAST_MODAL_DROP,
+                    default=self._get_val(CONF_FORECAST_MODAL_DROP, DEFAULT_FORECAST_MODAL_DROP),
+                ): selector.BooleanSelector(),
+                self._optional_entity(CONF_FORECAST_HP_ENTITY):
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="sensor", device_class="energy")
+                    ),
+                self._optional_entity(CONF_FORECAST_EV_ENTITY):
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="sensor", device_class="energy")
+                    ),
+            }),
+            description_placeholders={
+                "info": (
+                    "Die Lastvorhersage lernt dein Stundenprofil nach Wochentag und liefert "
+                    "Verbrauchsprognosen für 1h / 6h / Rest heute / morgen / 24h. "
+                    "Wird automatisch aus dem Hausverbrauch-Sensor gebaut. Optional können "
+                    "Wärmepumpe und E-Auto abgezogen werden für realistischere Basis-Last."
+                )
+            },
         )
 
     async def async_step_reset(self, user_input=None):

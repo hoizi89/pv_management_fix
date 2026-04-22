@@ -65,6 +65,7 @@
           "battery": "Magazyn Energii",
           "benchmark": "Benchmark Zużycia",
           "pv_strings": "Stringi PV (Porównanie)",
+          "forecast": "Prognoza zużycia",
           "reset": "Resetowanie Danych"
         }
       },
@@ -165,6 +166,24 @@
           "pv_string_4_kwp": "Moc zainstalowana (kWp)"
         }
       },
+      "forecast": {
+        "title": "Prognoza zużycia",
+        "description": "Uczy się godzinowego profilu zużycia (macierz 24×7) na podstawie zużycia domu i dostarcza prognozy na 1 h / 6 h / resztę dnia / jutro / 24 h. Automatyczne fallbacki: <2 tygodnie danych → średnia 7-dniowa, <3 dni → persystencja.",
+        "data": {
+          "forecast_enabled": "Włącz prognozę zużycia",
+          "forecast_weeks": "Okno historii",
+          "forecast_modal_drop": "Filtruj dni odstające",
+          "forecast_hp_entity": "Odejmij pompę ciepła (opcjonalnie)",
+          "forecast_ev_entity": "Odejmij ładowarkę EV (opcjonalnie)"
+        },
+        "data_description": {
+          "forecast_enabled": "Tworzy 5 sensorów prognostycznych dla logiki baterii/ładowania",
+          "forecast_weeks": "Więcej tygodni = stabilniejszy profil. 4 tygodnie = optymalnie",
+          "forecast_modal_drop": "Odrzuca najwyższą i najniższą wartość dla każdej komórki (zalecane)",
+          "forecast_hp_entity": "Licznik łączny pompy ciepła (kWh) — odejmowany od obciążenia bazowego",
+          "forecast_ev_entity": "Licznik łączny wallboxa (kWh) — odejmowany od obciążenia bazowego"
+        }
+      },
       "reset": {
         "title": "Resetowanie Danych",
         "description": "Wybierz, co zresetować. Operacja jest nieodwracalna!",
@@ -240,7 +259,12 @@
       "wp_vergleich": { "name": "Pompa Ciepła - Porównanie" },
       "gesamt_tagesproduktion": { "name": "Dzienna produkcja - Suma" },
       "gesamt_peak": { "name": "Moc Szczytowa - Rekord" },
-      "gesamt_peak_heute": { "name": "Moc Szczytowa - Dzisiaj" }
+      "gesamt_peak_heute": { "name": "Moc Szczytowa - Dzisiaj" },
+      "verbrauch_prognose_1h": { "name": "Prognoza zużycia 1h" },
+      "verbrauch_prognose_6h": { "name": "Prognoza zużycia 6h" },
+      "verbrauch_prognose_heute_rest": { "name": "Prognoza zużycia — reszta dnia" },
+      "verbrauch_prognose_morgen": { "name": "Prognoza zużycia — jutro" },
+      "verbrauch_prognose_24h": { "name": "Prognoza zużycia 24h" }
     }
   }
 }
