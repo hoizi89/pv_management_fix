@@ -1280,10 +1280,24 @@ class PVManagementFixController:
             except (ValueError, TypeError):
                 return default
 
+        def safe_float_or_none(val):
+            """Wie safe_float, aber gibt None zurück wenn kein Wert gespeichert war."""
+            if val is None:
+                return None
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+
         self._total_self_consumption_kwh = safe_float(data.get("total_self_consumption_kwh"))
         self._total_feed_in_kwh = safe_float(data.get("total_feed_in_kwh"))
         self._accumulated_savings_self = safe_float(data.get("accumulated_savings_self"))
         self._accumulated_earnings_feed = safe_float(data.get("accumulated_earnings_feed"))
+
+        # Letzte Sensor-Werte wiederherstellen (Issue #8) — None wenn nie gespeichert
+        self._last_pv_production_kwh = safe_float_or_none(data.get("last_pv_production_kwh"))
+        self._last_grid_export_kwh = safe_float_or_none(data.get("last_grid_export_kwh"))
+        self._last_grid_import_kwh = safe_float_or_none(data.get("last_grid_import_kwh"))
 
         self._tracked_grid_import_kwh = safe_float(data.get("tracked_grid_import_kwh"))
         self._total_grid_import_cost = safe_float(data.get("total_grid_import_cost"))
@@ -1414,9 +1428,15 @@ class PVManagementFixController:
         async_call_later(self.hass, 5.0, delayed_restore_notify)
 
     def _initialize_from_sensors(self) -> None:
-        """Initialisiert die Werte mit den aktuellen Sensor-Totals."""
-        pv_total = 0.0
-        export_total = 0.0
+        """Initialisiert die Werte mit den aktuellen Sensor-Totals.
+
+        Wichtig: Wir initialisieren NUR, wenn ALLE konfigurierten Energie-Sensoren
+        verfügbar sind. Sonst würde z. B. ein noch nicht ready Export-Sensor (= 0)
+        dazu führen, dass Self-Consumption = PV-Total falsch initialisiert wird
+        (Issue #4).
+        """
+        pv_total: float | None = None
+        export_total: float | None = None
 
         if self.pv_production_entity:
             state = self.hass.states.get(self.pv_production_entity)
@@ -1425,6 +1445,13 @@ class PVManagementFixController:
                     pv_total = float(state.state)
                 except (ValueError, TypeError):
                     pass
+            if pv_total is None:
+                _LOGGER.info(
+                    "PV-Sensor noch unavailable (%s), Init übersprungen — "
+                    "wird automatisch beim ersten State-Update initialisiert",
+                    self.pv_production_entity,
+                )
+                return
 
         if self.grid_export_entity:
             state = self.hass.states.get(self.grid_export_entity)
@@ -1433,8 +1460,17 @@ class PVManagementFixController:
                     export_total = float(state.state)
                 except (ValueError, TypeError):
                     pass
+            if export_total is None:
+                _LOGGER.info(
+                    "Export-Sensor noch unavailable (%s), Init übersprungen — "
+                    "wird automatisch beim ersten State-Update initialisiert",
+                    self.grid_export_entity,
+                )
+                return
+        else:
+            export_total = 0.0  # Kein Export-Sensor konfiguriert (z. B. Nulleinspeisung)
 
-        if pv_total <= 0:
+        if pv_total is None or pv_total <= 0:
             _LOGGER.info("Keine historischen PV-Daten verfügbar, starte bei 0")
             return
 
@@ -1465,6 +1501,10 @@ class PVManagementFixController:
             "total_feed_in_kwh": self._total_feed_in_kwh,
             "accumulated_savings_self": self._accumulated_savings_self,
             "accumulated_earnings_feed": self._accumulated_earnings_feed,
+            # Letzte Sensor-Werte für korrekte Delta-Berechnung nach Restart (Issue #8)
+            "last_pv_production_kwh": self._last_pv_production_kwh,
+            "last_grid_export_kwh": self._last_grid_export_kwh,
+            "last_grid_import_kwh": self._last_grid_import_kwh,
             "first_seen_date": self._first_seen_date.isoformat() if self._first_seen_date else None,
             "tracked_grid_import_kwh": self._tracked_grid_import_kwh,
             "total_grid_import_cost": self._total_grid_import_cost,
@@ -1574,7 +1614,11 @@ class PVManagementFixController:
         current_export = self._grid_export_kwh
         current_import = self._grid_import_kwh
 
-        if self._last_pv_production_kwh is None or self._last_grid_import_kwh is None:
+        # Initialisierung: Alle _last_* Variablen müssen gesetzt sein.
+        # Prüfen wir alle drei — sonst crashed delta_export = current_export - None.
+        if (self._last_pv_production_kwh is None
+                or self._last_grid_export_kwh is None
+                or self._last_grid_import_kwh is None):
             self._last_pv_production_kwh = current_pv
             self._last_grid_export_kwh = current_export
             self._last_grid_import_kwh = current_import
@@ -1763,24 +1807,38 @@ class PVManagementFixController:
 
     async def async_start(self) -> None:
         """Startet das Tracking."""
-        # Initiale Werte laden (mit Wh→kWh Konvertierung)
+        # Initiale Werte laden (mit Wh→kWh Konvertierung).
+        # Wir tracken pro Sensor, ob er beim Start tatsächlich verfügbar war —
+        # nur dann darf _last_* als Baseline gesetzt werden. Sonst riskieren wir
+        # bei Reload mit noch nicht ready Wechselrichter, dass _last_* = 0 bleibt
+        # und der nächste State-Update den ganzen Zählerstand als Delta einbucht
+        # (Issue #8).
+        sensor_available: dict[str, bool] = {}
         for entity_id, attr in [
             (self.pv_production_entity, "_pv_production_kwh"),
             (self.grid_export_entity, "_grid_export_kwh"),
             (self.grid_import_entity, "_grid_import_kwh"),
             (self.consumption_entity, "_consumption_kwh"),
         ]:
+            sensor_available[attr] = False
             if entity_id:
                 state = self.hass.states.get(entity_id)
                 if state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                     try:
                         setattr(self, attr, self._convert_energy_to_kwh(entity_id, float(state.state)))
+                        sensor_available[attr] = True
                     except (ValueError, TypeError):
                         pass
 
-        self._last_pv_production_kwh = self._pv_production_kwh
-        self._last_grid_export_kwh = self._grid_export_kwh
-        self._last_grid_import_kwh = self._grid_import_kwh
+        # _last_* nur setzen wenn der Sensor wirklich verfügbar war UND Restore
+        # noch keinen Wert geliefert hat. So bleibt der defensive None-Check in
+        # _process_energy_update() der Schutzmechanismus für unklare Zustände.
+        if sensor_available["_pv_production_kwh"] and self._last_pv_production_kwh is None:
+            self._last_pv_production_kwh = self._pv_production_kwh
+        if sensor_available["_grid_export_kwh"] and self._last_grid_export_kwh is None:
+            self._last_grid_export_kwh = self._grid_export_kwh
+        if sensor_available["_grid_import_kwh"] and self._last_grid_import_kwh is None:
+            self._last_grid_import_kwh = self._grid_import_kwh
 
         # Quota: Auto-Capture Zählerstand nur wenn 0 eingetragen
         # Erst am/nach Startdatum erfassen, damit kein Verbrauch von vor der Periode mitgezählt wird
