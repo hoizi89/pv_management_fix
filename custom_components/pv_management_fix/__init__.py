@@ -90,6 +90,16 @@ class PVManagementFixController:
         self._accumulated_savings_self = 0.0
         self._accumulated_earnings_feed = 0.0
 
+        # Baselines für absolute Berechnung von Self-Consumption und Feed-In.
+        # Vermeidet Drift-Bug bei asynchronen PV/Export-Sensor-Updates: statt
+        # delta-basiert (delta_pv - delta_export, was bei separaten Events drift)
+        # wird total = baseline + (current_pv - baseline_pv) - (current_export - baseline_export)
+        # neu berechnet. Selbstkorrigierend, robust gegen Sensor-Race-Conditions.
+        self._baseline_pv_production_kwh: float | None = None
+        self._baseline_grid_export_kwh: float | None = None
+        self._baseline_self_consumption_kwh: float | None = None
+        self._baseline_feed_in_kwh: float | None = None
+
         # Strompreis-Tracking für Durchschnittsberechnung (gewichtet nach Verbrauch)
         self._total_grid_import_cost = 0.0  # Gesamtkosten Netzbezug in €
         self._tracked_grid_import_kwh = 0.0  # Netzbezug für Durchschnittsberechnung
@@ -1299,6 +1309,12 @@ class PVManagementFixController:
         self._last_grid_export_kwh = safe_float_or_none(data.get("last_grid_export_kwh"))
         self._last_grid_import_kwh = safe_float_or_none(data.get("last_grid_import_kwh"))
 
+        # Baselines für Option-B-Berechnung wiederherstellen
+        self._baseline_pv_production_kwh = safe_float_or_none(data.get("baseline_pv_production_kwh"))
+        self._baseline_grid_export_kwh = safe_float_or_none(data.get("baseline_grid_export_kwh"))
+        self._baseline_self_consumption_kwh = safe_float_or_none(data.get("baseline_self_consumption_kwh"))
+        self._baseline_feed_in_kwh = safe_float_or_none(data.get("baseline_feed_in_kwh"))
+
         self._tracked_grid_import_kwh = safe_float(data.get("tracked_grid_import_kwh"))
         self._total_grid_import_cost = safe_float(data.get("total_grid_import_cost"))
 
@@ -1487,6 +1503,13 @@ class PVManagementFixController:
         self._accumulated_earnings_feed = earnings_feed
         self._first_seen_date = date.today()
 
+        # Baselines synchron zur Initialisierung mitsetzen — wir snappen den
+        # aktuellen Sensor-Stand als Referenzpunkt.
+        self._baseline_pv_production_kwh = pv_total
+        self._baseline_grid_export_kwh = export_total
+        self._baseline_self_consumption_kwh = self_consumption
+        self._baseline_feed_in_kwh = feed_in
+
         _LOGGER.info(
             "PV Management Fixpreis initialisiert: Eigenverbrauch=%.2f kWh (%.2f€), Einspeisung=%.2f kWh (%.2f€)",
             self_consumption, savings_self, feed_in, earnings_feed,
@@ -1505,6 +1528,11 @@ class PVManagementFixController:
             "last_pv_production_kwh": self._last_pv_production_kwh,
             "last_grid_export_kwh": self._last_grid_export_kwh,
             "last_grid_import_kwh": self._last_grid_import_kwh,
+            # Baselines für drift-freie Self-Consumption-Berechnung (Option B)
+            "baseline_pv_production_kwh": self._baseline_pv_production_kwh,
+            "baseline_grid_export_kwh": self._baseline_grid_export_kwh,
+            "baseline_self_consumption_kwh": self._baseline_self_consumption_kwh,
+            "baseline_feed_in_kwh": self._baseline_feed_in_kwh,
             "first_seen_date": self._first_seen_date.isoformat() if self._first_seen_date else None,
             "tracked_grid_import_kwh": self._tracked_grid_import_kwh,
             "total_grid_import_cost": self._total_grid_import_cost,
@@ -1609,13 +1637,26 @@ class PVManagementFixController:
         return round(total / 1000, 1) if total > 0 else None
 
     def _process_energy_update(self) -> None:
-        """Verarbeitet Energie-Updates INKREMENTELL."""
+        """
+        Verarbeitet Energie-Updates.
+
+        Total Self-Consumption + Feed-In werden via Option B (absolute
+        Berechnung aus Baseline) bestimmt — robust gegen asynchrone
+        PV/Export-Sensor-Events (Issue #4 reopened):
+
+            total_self = baseline_self + (current_pv - baseline_pv)
+                                       - (current_export - baseline_export)
+            total_feed = baseline_feed + (current_export - baseline_export)
+
+        Daily/Monthly Tracking bleibt inkrementell aus den effektiven Deltas
+        (Differenz zur vorherigen Total). Strompreis-Tracking (Import) ist
+        unproblematisch da Single-Sensor — bleibt rein inkrementell.
+        """
         current_pv = self._pv_production_kwh
         current_export = self._grid_export_kwh
         current_import = self._grid_import_kwh
 
-        # Initialisierung: Alle _last_* Variablen müssen gesetzt sein.
-        # Prüfen wir alle drei — sonst crashed delta_export = current_export - None.
+        # Init-Guard: Wenn _last_* None → setze und return.
         if (self._last_pv_production_kwh is None
                 or self._last_grid_export_kwh is None
                 or self._last_grid_import_kwh is None):
@@ -1628,32 +1669,84 @@ class PVManagementFixController:
             )
             return
 
-        delta_pv = current_pv - self._last_pv_production_kwh
-        delta_export = current_export - self._last_grid_export_kwh
+        # Baseline-Migration: Bei bestehenden Installationen ohne Baseline-Daten
+        # snappen wir den aktuellen Zustand. _total_self_consumption_kwh etc.
+        # sind bereits restored — wir verwenden die als Baseline-Total.
+        if (self._baseline_pv_production_kwh is None
+                or self._baseline_grid_export_kwh is None
+                or self._baseline_self_consumption_kwh is None
+                or self._baseline_feed_in_kwh is None):
+            self._baseline_pv_production_kwh = current_pv
+            self._baseline_grid_export_kwh = current_export
+            self._baseline_self_consumption_kwh = self._total_self_consumption_kwh
+            self._baseline_feed_in_kwh = self._total_feed_in_kwh
+            _LOGGER.info(
+                "Baseline initialisiert: PV=%.2f, Export=%.2f, Self=%.2f, Feed=%.2f kWh",
+                current_pv, current_export,
+                self._total_self_consumption_kwh, self._total_feed_in_kwh,
+            )
+
+        # Sensor-Reset Detection: aktueller Wert kleiner als Baseline →
+        # Sensor zurückgesetzt (z.B. Wechselrichter getauscht). Re-baseline ohne
+        # die bisherigen Totals zu zerstören.
+        if current_pv < self._baseline_pv_production_kwh - 0.5 or current_export < self._baseline_grid_export_kwh - 0.5:
+            _LOGGER.warning(
+                "Sensor-Reset detektiert (PV: %.2f<%.2f oder Export: %.2f<%.2f) — re-baselining",
+                current_pv, self._baseline_pv_production_kwh,
+                current_export, self._baseline_grid_export_kwh,
+            )
+            self._baseline_pv_production_kwh = current_pv
+            self._baseline_grid_export_kwh = current_export
+            self._baseline_self_consumption_kwh = self._total_self_consumption_kwh
+            self._baseline_feed_in_kwh = self._total_feed_in_kwh
+            self._last_pv_production_kwh = current_pv
+            self._last_grid_export_kwh = current_export
+            self._last_grid_import_kwh = current_import
+            return
+
+        # Option B: Totals aus Baselines absolut berechnen
+        new_total_self_consumption = max(
+            0.0,
+            self._baseline_self_consumption_kwh
+            + (current_pv - self._baseline_pv_production_kwh)
+            - (current_export - self._baseline_grid_export_kwh),
+        )
+        new_total_feed_in = max(
+            0.0,
+            self._baseline_feed_in_kwh + (current_export - self._baseline_grid_export_kwh),
+        )
+
+        # Effective Deltas für Daily/Monthly Tracking
+        effective_delta_self = new_total_self_consumption - self._total_self_consumption_kwh
+        effective_delta_feed_in = new_total_feed_in - self._total_feed_in_kwh
         delta_import = current_import - self._last_grid_import_kwh
 
+        # Sanity: unrealistische Sprünge ignorieren + re-baseline
         MAX_DELTA_KWH = 50.0
-        if delta_pv > MAX_DELTA_KWH:
+        if (abs(effective_delta_self) > MAX_DELTA_KWH
+                or abs(effective_delta_feed_in) > MAX_DELTA_KWH
+                or abs(delta_import) > MAX_DELTA_KWH):
+            _LOGGER.warning(
+                "Unrealistic delta detected (self=%.1f, feed=%.1f, import=%.1f) — re-baselining",
+                effective_delta_self, effective_delta_feed_in, delta_import,
+            )
+            self._baseline_pv_production_kwh = current_pv
+            self._baseline_grid_export_kwh = current_export
+            self._baseline_self_consumption_kwh = self._total_self_consumption_kwh
+            self._baseline_feed_in_kwh = self._total_feed_in_kwh
             self._last_pv_production_kwh = current_pv
-            delta_pv = 0
-        if delta_export > MAX_DELTA_KWH:
             self._last_grid_export_kwh = current_export
-            delta_export = 0
-        if delta_import > MAX_DELTA_KWH:
             self._last_grid_import_kwh = current_import
-            delta_import = 0
+            return
 
-        if delta_pv < 0:
-            self._last_pv_production_kwh = current_pv
-            delta_pv = 0
-        if delta_export < 0:
-            self._last_grid_export_kwh = current_export
-            delta_export = 0
         if delta_import < 0:
+            # Import-Sensor zurückgesetzt
             self._last_grid_import_kwh = current_import
             delta_import = 0
 
-        delta_self_consumption = max(0.0, delta_pv - delta_export)
+        # Totals und Akkumulatoren aktualisieren
+        self._total_self_consumption_kwh = new_total_self_consumption
+        self._total_feed_in_kwh = new_total_feed_in
 
         # Tägliches Tracking: Reset bei Tageswechsel
         today = date.today()
@@ -1668,20 +1761,20 @@ class PVManagementFixController:
                 self._quota_day_start_meter = self._grid_import_kwh
                 self._quota_day_start_date = today
 
-        if delta_self_consumption > 0 or delta_export > 0:
+        if effective_delta_self != 0 or effective_delta_feed_in != 0:
             # Bei Fixpreis: Brutto-Preis für Ersparnis (netto × Aufschlagfaktor)
             price_electricity = self.gross_price
             price_feed_in = self.current_feed_in_tariff
 
-            savings_delta = delta_self_consumption * price_electricity
-            earnings_delta = delta_export * price_feed_in
+            savings_delta = effective_delta_self * price_electricity
+            earnings_delta = effective_delta_feed_in * price_feed_in
 
-            self._total_self_consumption_kwh += delta_self_consumption
-            self._total_feed_in_kwh += delta_export
             self._accumulated_savings_self += savings_delta
             self._accumulated_earnings_feed += earnings_delta
-            self._daily_feed_in_earnings += earnings_delta
-            self._daily_feed_in_kwh += delta_export
+            # Daily Feed-In nur positive Deltas mitloggen (sonst Tagesreset-Drift)
+            if effective_delta_feed_in > 0:
+                self._daily_feed_in_earnings += earnings_delta
+                self._daily_feed_in_kwh += effective_delta_feed_in
 
         # Strompreis-Tracking
         if delta_import > 0:
@@ -1713,9 +1806,11 @@ class PVManagementFixController:
             self._monthly_bucket_month = current_month
 
         bucket = self._monthly_buckets[current_month]
-        bucket["self_consumption"] += delta_self_consumption
+        # Effective Deltas für Bucket — kann auch negativ sein, ist OK weil
+        # Buckets nur als Summen ausgewertet werden und sich monatsweise zurücksetzen
+        bucket["self_consumption"] += effective_delta_self
         bucket["grid_import"] += delta_import
-        bucket["feed_in"] += delta_export
+        bucket["feed_in"] += effective_delta_feed_in
 
         self._last_pv_production_kwh = current_pv
         self._last_grid_export_kwh = current_export
