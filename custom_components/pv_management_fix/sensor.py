@@ -1775,7 +1775,7 @@ class BenchmarkAnnualPVSensor(BaseEntity):
         super().__init__(
             ctrl,
             name,
-            "PV Produktion",
+            "PV Produktion Benchmark",
             unit="kWh/Jahr",
             icon="mdi:solar-power",
             state_class=SensorStateClass.MEASUREMENT,
