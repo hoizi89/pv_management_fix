@@ -1888,10 +1888,14 @@ class BenchmarkScoreSensor(BaseEntity):
             state_class=SensorStateClass.MEASUREMENT,
             device_type=DEVICE_BENCHMARK,
         )
+        self._last_score: int | None = None
 
     @property
     def native_value(self) -> int | None:
-        return self.ctrl.benchmark_efficiency_score
+        score = self.ctrl.benchmark_efficiency_score
+        if score is not None:
+            self._last_score = score
+        return self._last_score
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -1929,10 +1933,14 @@ class BenchmarkRatingSensor(BaseEntity):
             icon="mdi:trophy",
             device_type=DEVICE_BENCHMARK,
         )
+        self._last_rating: str | None = None
 
     @property
     def native_value(self) -> str | None:
-        return self.ctrl.benchmark_rating
+        rating = self.ctrl.benchmark_rating
+        if rating is not None:
+            self._last_rating = rating
+        return self._last_rating
 
 
 class BenchmarkHeatpumpAvgSensor(BaseEntity):
