@@ -680,7 +680,9 @@ class PVManagementFixController:
         if not self.battery_charge_entity:
             return None
         val, ok = self._get_entity_value(self.battery_charge_entity)
-        return val if ok else None
+        if not ok:
+            return None
+        return self._convert_energy_to_kwh(self.battery_charge_entity, val)
 
     @property
     def battery_discharge_total(self) -> float | None:
@@ -688,7 +690,9 @@ class PVManagementFixController:
         if not self.battery_discharge_entity:
             return None
         val, ok = self._get_entity_value(self.battery_discharge_entity)
-        return val if ok else None
+        if not ok:
+            return None
+        return self._convert_energy_to_kwh(self.battery_discharge_entity, val)
 
     @property
     def battery_efficiency(self) -> float | None:
