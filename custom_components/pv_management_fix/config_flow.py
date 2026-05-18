@@ -158,6 +158,10 @@ class PVManagementFixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             mode=selector.NumberSelectorMode.BOX,
                         )
                     ),
+                # Einspeisevergütung als Sensor (optional, überschreibt den Fixwert)
+                vol.Optional(CONF_FEED_IN_TARIFF_ENTITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+                ),
 
                 # === AMORTISATION ===
                 vol.Required(CONF_INSTALLATION_COST, default=DEFAULT_INSTALLATION_COST):
@@ -169,6 +173,14 @@ class PVManagementFixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         )
                     ),
                 vol.Optional(CONF_INSTALLATION_DATE): selector.DateSelector(),
+                vol.Optional(CONF_YEARLY_COST, default=DEFAULT_YEARLY_COST):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0.0, max=5000.0, step=1.0,
+                            unit_of_measurement="€/Jahr",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
 
                 # === AMORTISATION HELPER (optional, empfohlen für Persistenz) ===
                 vol.Optional(CONF_AMORTISATION_HELPER): selector.EntitySelector(
