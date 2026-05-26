@@ -23,6 +23,7 @@ from .const import (
     CONF_BATTERY_DISCHARGE_ENTITY, CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY,
     CONF_PV_POWER_ENTITY, CONF_HOUSE_POWER_ENTITY,
     CONF_PV_PEAK_POWER, DEFAULT_PV_PEAK_POWER,
+    CONF_SHIFTABLE_LOAD_ENTITY,
     CONF_BENCHMARK_ENABLED, CONF_BENCHMARK_HOUSEHOLD_SIZE, CONF_BENCHMARK_COUNTRY,
     CONF_BENCHMARK_HEATPUMP, CONF_BENCHMARK_HEATPUMP_ENTITY, CONF_BENCHMARK_HEATPUMP_DATE,
     DEFAULT_BENCHMARK_ENABLED, DEFAULT_BENCHMARK_HOUSEHOLD_SIZE, DEFAULT_BENCHMARK_COUNTRY,
@@ -218,11 +219,9 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options={
-                "sensors": "Sensoren",
-                "prices": "Strompreise & Amortisation",
-                "helper": "Amortisation Helper",
-                "offsets": "Historische Daten",
-                "quota": "Stromkontingent",
+                "sensors": "Sensoren & Leistungen",
+                "tariff": "Tarif & Kosten",
+                "amortisation": "Amortisation-Persistenz",
                 "battery": "Batterie",
                 "benchmark": "Energie-Benchmark",
                 "pv_strings": "PV-Strings",
@@ -253,7 +252,10 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
     async def async_step_sensors(self, user_input=None):
         """Energie-Sensoren konfigurieren."""
         if user_input is not None:
-            return await self._save_and_return_to_menu(user_input)
+            return await self._save_and_return_to_menu(user_input, optional_entity_keys=(
+                CONF_GRID_EXPORT_ENTITY, CONF_GRID_IMPORT_ENTITY, CONF_CONSUMPTION_ENTITY,
+                CONF_PV_POWER_ENTITY, CONF_HOUSE_POWER_ENTITY, CONF_SHIFTABLE_LOAD_ENTITY,
+            ))
 
         return self.async_show_form(
             step_id="sensors",
@@ -266,10 +268,15 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
                 self._optional_entity(CONF_CONSUMPTION_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
-                # PV-Ueberschuss-Sensoren: aktuelle Leistungen (W) + optionaler Peak-Override
+                # --- Live-Leistungen (W) fuer PV-Ueberschuss-Sensoren --------------
                 self._optional_entity(CONF_PV_POWER_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
                 self._optional_entity(CONF_HOUSE_POWER_ENTITY):
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
+                # PV-gesteuerter Verbraucher (z.B. WP) — wird vom Hausverbrauch
+                # abgezogen, damit der Verbraucher sich nicht selbst durch eigene
+                # Last unter die Schwelle treibt (Anti-Selbstaufzehrung)
+                self._optional_entity(CONF_SHIFTABLE_LOAD_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
                 # Leer lassen → auto-derive aus PV-Strings (kWp) oder gemessenem Peak
                 vol.Optional(CONF_PV_PEAK_POWER,
@@ -288,14 +295,14 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
             return vol.Optional(key, description={"suggested_value": val})
         return vol.Optional(key)
 
-    async def async_step_prices(self, user_input=None):
-        """Strompreise und Amortisation konfigurieren."""
+    async def async_step_tariff(self, user_input=None):
+        """Tarif, Kosten, Quota, Anschaffung konfigurieren."""
         if user_input is not None:
             return await self._save_and_return_to_menu(user_input, optional_entity_keys=(
                 CONF_ELECTRICITY_PRICE_ENTITY, CONF_FEED_IN_TARIFF_ENTITY))
 
         return self.async_show_form(
-            step_id="prices",
+            step_id="tariff",
             data_schema=vol.Schema({
                 # Fixpreis (Fallback wenn kein Sensor)
                 vol.Optional(CONF_FIXED_PRICE, default=self._get_val(CONF_FIXED_PRICE, DEFAULT_FIXED_PRICE)):
@@ -391,101 +398,69 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                             unit_of_measurement="€/Jahr", mode=selector.NumberSelectorMode.BOX
                         )
                     ),
+
+                # --- Stromkontingent (Jahres-kWh-Budget) -----------------------
+                vol.Required(CONF_QUOTA_ENABLED, default=self._get_val(CONF_QUOTA_ENABLED, DEFAULT_QUOTA_ENABLED)):
+                    selector.BooleanSelector(),
+                vol.Required(CONF_QUOTA_YEARLY_KWH, default=self._get_val(CONF_QUOTA_YEARLY_KWH, DEFAULT_QUOTA_YEARLY_KWH)):
+                    selector.NumberSelector(selector.NumberSelectorConfig(
+                        min=RANGE_QUOTA_KWH["min"], max=RANGE_QUOTA_KWH["max"], step=RANGE_QUOTA_KWH["step"],
+                        unit_of_measurement="kWh", mode=selector.NumberSelectorMode.BOX,
+                    )),
+                vol.Optional(CONF_QUOTA_START_DATE, default=self._get_val(CONF_QUOTA_START_DATE)):
+                    selector.DateSelector(),
+                vol.Optional(CONF_QUOTA_START_METER, default=self._get_val(CONF_QUOTA_START_METER, DEFAULT_QUOTA_START_METER)):
+                    selector.NumberSelector(selector.NumberSelectorConfig(
+                        min=RANGE_QUOTA_METER["min"], max=RANGE_QUOTA_METER["max"], step=RANGE_QUOTA_METER["step"],
+                        unit_of_measurement="kWh", mode=selector.NumberSelectorMode.BOX,
+                    )),
+                vol.Optional(CONF_QUOTA_MONTHLY_RATE, default=self._get_val(CONF_QUOTA_MONTHLY_RATE, DEFAULT_QUOTA_MONTHLY_RATE)):
+                    selector.NumberSelector(selector.NumberSelectorConfig(
+                        min=RANGE_QUOTA_RATE["min"], max=RANGE_QUOTA_RATE["max"], step=RANGE_QUOTA_RATE["step"],
+                        unit_of_measurement="€/Monat", mode=selector.NumberSelectorMode.BOX,
+                    )),
             })
         )
 
-    async def async_step_helper(self, user_input=None):
-        """Amortisation Helper konfigurieren."""
+    async def async_step_amortisation(self, user_input=None):
+        """Amortisation-Persistenz: Helper + Historische Daten / Offsets."""
         if user_input is not None:
             return await self._save_and_return_to_menu(user_input)
 
         return self.async_show_form(
-            step_id="helper",
+            step_id="amortisation",
             data_schema=vol.Schema({
+                # Helper fuer Persistenz der Gesamtersparnis
                 vol.Required(CONF_AMORTISATION_HELPER, default=self._get_val(CONF_AMORTISATION_HELPER)):
                     selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="input_number")
                     ),
                 vol.Optional(CONF_RESTORE_FROM_HELPER, default=self._get_val(CONF_RESTORE_FROM_HELPER, False)):
                     selector.BooleanSelector(),
+
+                # --- Historische Daten / Offsets ----------------------------
+                # Ersparnis-Offset (fuer bereits amortisierten Betrag)
+                vol.Optional(CONF_SAVINGS_OFFSET, default=self._get_val(CONF_SAVINGS_OFFSET, DEFAULT_SAVINGS_OFFSET)):
+                    selector.NumberSelector(selector.NumberSelectorConfig(
+                        min=RANGE_OFFSET["min"], max=RANGE_OFFSET["max"], step=RANGE_OFFSET["step"],
+                        unit_of_measurement="€", mode=selector.NumberSelectorMode.BOX
+                    )),
+
+                # Energie-Offsets (fuer historische Daten vor Tracking)
+                vol.Optional(CONF_ENERGY_OFFSET_SELF, default=self._get_val(CONF_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_SELF)):
+                    selector.NumberSelector(selector.NumberSelectorConfig(
+                        min=RANGE_ENERGY_OFFSET["min"], max=RANGE_ENERGY_OFFSET["max"], step=RANGE_ENERGY_OFFSET["step"],
+                        unit_of_measurement="kWh", mode=selector.NumberSelectorMode.BOX
+                    )),
+                vol.Optional(CONF_ENERGY_OFFSET_EXPORT, default=self._get_val(CONF_ENERGY_OFFSET_EXPORT, DEFAULT_ENERGY_OFFSET_EXPORT)):
+                    selector.NumberSelector(selector.NumberSelectorConfig(
+                        min=RANGE_ENERGY_OFFSET["min"], max=RANGE_ENERGY_OFFSET["max"], step=RANGE_ENERGY_OFFSET["step"],
+                        unit_of_measurement="kWh", mode=selector.NumberSelectorMode.BOX
+                    )),
             }),
             description_placeholders={
-                "info": "Der Helper speichert die Gesamtersparnis (EUR) unabhängig von der Integration."
+                "info": "Der Helper sichert die Gesamtersparnis dauerhaft. Offsets fuer historische Daten vor Tracking-Start."
             }
-        )
-
-    async def async_step_offsets(self, user_input=None):
-        """Historische Daten (Offsets) konfigurieren."""
-        if user_input is not None:
-            return await self._save_and_return_to_menu(user_input)
-
-        return self.async_show_form(
-            step_id="offsets",
-            data_schema=vol.Schema({
-                # Ersparnis-Offset (für bereits amortisierten Betrag)
-                vol.Optional(CONF_SAVINGS_OFFSET, default=self._get_val(CONF_SAVINGS_OFFSET, DEFAULT_SAVINGS_OFFSET)):
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=RANGE_OFFSET["min"], max=RANGE_OFFSET["max"], step=RANGE_OFFSET["step"],
-                            unit_of_measurement="€", mode=selector.NumberSelectorMode.BOX
-                        )
-                    ),
-
-                # Energie-Offsets (für historische Daten vor Tracking)
-                vol.Optional(CONF_ENERGY_OFFSET_SELF, default=self._get_val(CONF_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_SELF)):
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=RANGE_ENERGY_OFFSET["min"], max=RANGE_ENERGY_OFFSET["max"], step=RANGE_ENERGY_OFFSET["step"],
-                            unit_of_measurement="kWh", mode=selector.NumberSelectorMode.BOX
-                        )
-                    ),
-                vol.Optional(CONF_ENERGY_OFFSET_EXPORT, default=self._get_val(CONF_ENERGY_OFFSET_EXPORT, DEFAULT_ENERGY_OFFSET_EXPORT)):
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=RANGE_ENERGY_OFFSET["min"], max=RANGE_ENERGY_OFFSET["max"], step=RANGE_ENERGY_OFFSET["step"],
-                            unit_of_measurement="kWh", mode=selector.NumberSelectorMode.BOX
-                        )
-                    ),
-            })
-        )
-
-    async def async_step_quota(self, user_input=None):
-        """Stromkontingent konfigurieren."""
-        if user_input is not None:
-            return await self._save_and_return_to_menu(user_input)
-
-        return self.async_show_form(
-            step_id="quota",
-            data_schema=vol.Schema({
-                vol.Required(CONF_QUOTA_ENABLED, default=self._get_val(CONF_QUOTA_ENABLED, DEFAULT_QUOTA_ENABLED)):
-                    selector.BooleanSelector(),
-                vol.Required(CONF_QUOTA_YEARLY_KWH, default=self._get_val(CONF_QUOTA_YEARLY_KWH, DEFAULT_QUOTA_YEARLY_KWH)):
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=RANGE_QUOTA_KWH["min"], max=RANGE_QUOTA_KWH["max"], step=RANGE_QUOTA_KWH["step"],
-                            unit_of_measurement="kWh",
-                            mode=selector.NumberSelectorMode.BOX,
-                        )
-                    ),
-                vol.Optional(CONF_QUOTA_START_DATE, default=self._get_val(CONF_QUOTA_START_DATE)):
-                    selector.DateSelector(),
-                vol.Optional(CONF_QUOTA_START_METER, default=self._get_val(CONF_QUOTA_START_METER, DEFAULT_QUOTA_START_METER)):
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=RANGE_QUOTA_METER["min"], max=RANGE_QUOTA_METER["max"], step=RANGE_QUOTA_METER["step"],
-                            unit_of_measurement="kWh",
-                            mode=selector.NumberSelectorMode.BOX,
-                        )
-                    ),
-                vol.Optional(CONF_QUOTA_MONTHLY_RATE, default=self._get_val(CONF_QUOTA_MONTHLY_RATE, DEFAULT_QUOTA_MONTHLY_RATE)):
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=RANGE_QUOTA_RATE["min"], max=RANGE_QUOTA_RATE["max"], step=RANGE_QUOTA_RATE["step"],
-                            unit_of_measurement="€/Monat",
-                            mode=selector.NumberSelectorMode.BOX,
-                        )
-                    ),
-            })
         )
 
     async def async_step_battery(self, user_input=None):

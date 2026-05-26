@@ -166,6 +166,8 @@ class PVSurplusBinarySensor(BinarySensorEntity):
             "aktueller_ueberschuss_w": round(self.ctrl.current_pv_surplus_w, 0),
             "pv_leistung_w": round(self.ctrl.pv_power, 0),
             "hausverbrauch_w": round(self.ctrl.house_power, 0),
+            "shiftable_load_w": round(self.ctrl.shiftable_load_power, 0),
+            "effektiver_hausverbrauch_w": round(self.ctrl.effective_house_power, 0),
             "schwelle_ein_w": round(threshold_on, 0),
             "schwelle_aus_w": round(threshold_off, 0),
             "anteil_peak": SURPLUS_RATIOS[self._level],
@@ -175,5 +177,6 @@ class PVSurplusBinarySensor(BinarySensorEntity):
             "off_delay_s": SURPLUS_OFF_DELAY,
             "pv_power_sensor_konfiguriert": bool(self.ctrl.pv_power_entity),
             "haus_power_sensor_konfiguriert": bool(self.ctrl.house_power_entity),
+            "shiftable_load_konfiguriert": bool(self.ctrl.shiftable_load_entity),
             "uebergang_ausstehend": pending,
         }

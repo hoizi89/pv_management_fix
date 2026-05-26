@@ -57,11 +57,9 @@
         "title": "PV Energy Management+ Settings",
         "description": "All features are here. Tip: Enable Battery, Benchmark and PV Strings for the full experience!",
         "menu_options": {
-          "sensors": "Sensors",
-          "prices": "Electricity Prices & Amortization",
-          "helper": "Amortization Helper",
-          "offsets": "Historical Data",
-          "quota": "Electricity Quota",
+          "sensors": "Sensors & Power",
+          "tariff": "Tariff & Costs",
+          "amortisation": "Amortization Persistence",
           "battery": "Battery",
           "benchmark": "Energy Benchmark",
           "pv_strings": "PV Strings",
@@ -70,15 +68,16 @@
         }
       },
       "sensors": {
-        "title": "Energy Sensors",
-        "description": "Configure sensors for energy tracking and spot comparison.",
+        "title": "Sensors & Power",
+        "description": "Energy counters (kWh) for tracking + live power (W) for the PV surplus sensors. You need PV power and house power (W) for the low/medium/high binary sensors. The 'PV-aware load' (optional) prevents self-consumption oscillation — see description.",
         "data": {
-          "pv_production_entity": "PV Production Sensor (kWh)",
-          "grid_export_entity": "Grid Export Sensor (kWh)",
-          "grid_import_entity": "Grid Import Sensor (kWh)",
-          "consumption_entity": "Consumption Sensor (kWh)",
-          "pv_power_entity": "Current PV Power (W, optional)",
-          "house_power_entity": "Current House Power (W, optional)",
+          "pv_production_entity": "PV Production (kWh)",
+          "grid_export_entity": "Grid Export (kWh)",
+          "grid_import_entity": "Grid Import (kWh)",
+          "consumption_entity": "Consumption (kWh)",
+          "pv_power_entity": "Current PV Power (W)",
+          "house_power_entity": "Current House Power (W)",
+          "shiftable_load_entity": "PV-aware Load (W)",
           "pv_peak_power": "PV System Peak Power (W, auto)"
         },
         "data_description": {
@@ -86,14 +85,15 @@
           "grid_export_entity": "Ever-increasing energy counter (kWh) for grid export.",
           "grid_import_entity": "Ever-increasing energy counter (kWh) for grid import.",
           "consumption_entity": "Ever-increasing energy counter (kWh) for household consumption.",
-          "pv_power_entity": "Current PV power in Watts (W). Required for PV surplus sensors.",
-          "house_power_entity": "Current house power consumption in Watts (W). Required for PV surplus sensors.",
-          "pv_peak_power": "Leave empty → auto-derived from your PV strings (sum of configured kWp × 1000 or measured peak). Only set this to override the automatic value."
+          "pv_power_entity": "Current PV power in Watts (e.g. from your inverter). Together with house power (W) required for the PV surplus sensors.",
+          "house_power_entity": "Current house power consumption in Watts (e.g. from your smart meter). Surplus = PV power - house power.",
+          "shiftable_load_entity": "Optional. When your PV-aware load (e.g. heat pump) is running, its consumption is subtracted from house power. Otherwise the load would push surplus below the threshold by its own consumption, causing flapping between ON and OFF.",
+          "pv_peak_power": "Leave empty → auto-derived from your PV strings (sum of configured kWp × 1000 or measured peak). Only set this to override the automatic value. Drives the low/medium/high thresholds (5/15/30 % of peak)."
         }
       },
-      "prices": {
-        "title": "Electricity Prices & Amortization",
-        "description": "Enter the values from your electricity bill. Alternatively: Just use the markup factor at the bottom.",
+      "tariff": {
+        "title": "Tariff & Costs",
+        "description": "Electricity prices, feed-in tariff, installation costs and electricity quota. Enter the values from your electricity bill. Alternatively: Just use the markup factor.",
         "data": {
           "fixed_price": "Electricity price net (ct/kWh) — Fallback",
           "grid_fee": "Grid Fee (ct/kWh)",
@@ -106,7 +106,12 @@
           "feed_in_tariff_entity": "Feed-in tariff via sensor (optional)",
           "installation_cost": "PV system installation cost",
           "installation_date": "Installation date",
-          "yearly_cost": "Yearly cost"
+          "yearly_cost": "Yearly cost",
+          "quota_enabled": "Enable electricity quota",
+          "quota_yearly_kwh": "Yearly quota (kWh)",
+          "quota_start_date": "Tariff period start date",
+          "quota_start_meter": "Grid import meter at start date (optional)",
+          "quota_monthly_rate": "Monthly payment (EUR)"
         },
         "data_description": {
           "fixed_price": "Static net energy price. Only used when NO sensor is selected.",
@@ -120,39 +125,30 @@
           "feed_in_tariff_entity": "Sensor or input_number for current feed-in tariff (e.g. market price). Overrides the static value above. Unit (ct/EUR) auto-detected.",
           "installation_cost": "Total cost of PV system (for amortization calculation)",
           "installation_date": "For statistics and forecasts",
-          "yearly_cost": "Yearly costs like insurance, maintenance etc. Deducted from amortization calculation."
+          "yearly_cost": "Yearly costs like insurance, maintenance etc. Deducted from amortization calculation.",
+          "quota_enabled": "Enables the electricity quota sensors (fixed-price tariff with yearly kWh budget)",
+          "quota_yearly_kwh": "Your yearly quota in kWh (e.g., 4000 kWh)",
+          "quota_start_date": "Start of tariff period (read from invoice, doesn't have to be Jan 1)",
+          "quota_start_meter": "Read from invoice or sensor history. Leave at 0 to auto-capture on start date.",
+          "quota_monthly_rate": "Optional: Monthly payment in EUR (display only)"
         }
       },
-      "offsets": {
-        "title": "Historical Data",
-        "description": "Only needed if your PV system was running BEFORE this integration. Leave at 0 for new installations.",
+      "amortisation": {
+        "title": "Amortization Persistence",
+        "description": "Helper for permanently stored total savings + offsets for historical data from before tracking started.",
         "data": {
+          "amortisation_helper": "Amortization Helper (input_number)",
+          "restore_from_helper": "Restore values from helper?",
           "savings_offset": "Already amortized amount (EUR)",
           "energy_offset_self_consumption": "Self-consumed PV energy before tracking (kWh)",
           "energy_offset_export": "Grid export before tracking (kWh)"
         },
         "data_description": {
-          "savings_offset": "How much has the PV system already 'earned back'? E.g. from previous tracking or your own calculation. Savings are calculated at the current electricity price.",
+          "amortisation_helper": "input_number helper to store total savings. Survives updates/reinstalls.",
+          "restore_from_helper": "On start, restore savings from the helper value.",
+          "savings_offset": "How much has the PV system already 'earned back'? E.g. from previous tracking. Savings calculated at current price.",
           "energy_offset_self_consumption": "PV energy you consumed yourself before this integration started. Find in Energy Dashboard (self consumption = PV production minus export).",
           "energy_offset_export": "PV energy exported to the grid before this integration started. Find on your export meter or Energy Dashboard."
-        }
-      },
-      "quota": {
-        "title": "Electricity Quota",
-        "description": "Fixed-price tariff with yearly kWh quota. Shows if you're within budget.",
-        "data": {
-          "quota_enabled": "Enable electricity quota",
-          "quota_yearly_kwh": "Yearly quota (kWh)",
-          "quota_start_date": "Tariff period start date",
-          "quota_start_meter": "Grid import meter at start date (optional)",
-          "quota_monthly_rate": "Monthly payment (EUR)"
-        },
-        "data_description": {
-          "quota_enabled": "Enables the electricity quota sensors",
-          "quota_yearly_kwh": "Your yearly quota in kWh (e.g., 4000 kWh)",
-          "quota_start_date": "Start of tariff period (read from invoice, doesn't have to be Jan 1)",
-          "quota_start_meter": "Read from invoice or sensor history. Leave at 0 to auto-capture on start date.",
-          "quota_monthly_rate": "Optional: Monthly payment in EUR (display only)"
         }
       },
       "battery": {

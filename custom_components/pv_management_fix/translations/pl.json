@@ -57,11 +57,9 @@
         "title": "Ustawienia PV Energy Management+",
         "description": "Tutaj znajdziesz wszystkie funkcje. Wskazówka: Włącz Baterię, Benchmark i Stringi PV aby uzyskać pełną funkcjonalność!",
         "menu_options": {
-          "sensors": "Sensory Energii",
-          "prices": "Ceny Prądu i Amortyzacja",
-          "helper": "Pomocnik Amortyzacji",
-          "offsets": "Dane Historyczne",
-          "quota": "Limit Zużycia (Quota)",
+          "sensors": "Sensory i Moc",
+          "tariff": "Taryfa i Koszty",
+          "amortisation": "Trwałość Amortyzacji",
           "battery": "Magazyn Energii",
           "benchmark": "Benchmark Zużycia",
           "pv_strings": "Stringi PV (Porównanie)",
@@ -70,21 +68,22 @@
         }
       },
       "sensors": {
-        "title": "Sensory Energii",
-        "description": "Skonfiguruj sensory śledzące przepływ energii.",
+        "title": "Sensory i Moc",
+        "description": "Liczniki energii (kWh) do śledzenia + aktualna moc (W) dla sensorów nadwyżki PV. Moc PV i moc domu (W) są wymagane dla binary sensorów low/medium/high.",
         "data": {
           "pv_production_entity": "Sensor Produkcji PV (kWh)",
           "grid_export_entity": "Sensor Eksportu (kWh)",
           "grid_import_entity": "Sensor Poboru (kWh)",
           "consumption_entity": "Sensor Zużycia Domu (kWh)",
-          "pv_power_entity": "Aktualna moc PV (W, opcjonalnie)",
-          "house_power_entity": "Aktualne zużycie domu (W, opcjonalnie)",
+          "pv_power_entity": "Aktualna moc PV (W)",
+          "house_power_entity": "Aktualne zużycie domu (W)",
+          "shiftable_load_entity": "Odbiornik sterowany PV (W)",
           "pv_peak_power": "Moc szczytowa instalacji PV (W, auto)"
         }
       },
-      "prices": {
-        "title": "Ceny Prądu i Amortyzacja",
-        "description": "Zdefiniuj stawkę kupna i sprzedaży prądu. Obie wartości mogą być dynamicznie pobierane z sensorów.",
+      "tariff": {
+        "title": "Taryfa i Koszty",
+        "description": "Ceny prądu, stawka odkupu, koszty instalacji i limit zużycia.",
         "data": {
           "fixed_price": "Cena netto (gr/kWh) — awaryjna",
           "grid_fee": "Opłata sieciowa (gr/kWh)",
@@ -97,27 +96,23 @@
           "feed_in_tariff_entity": "Stawka odkupu z sensora (opcjonalnie)",
           "installation_cost": "Koszt instalacji systemu PV",
           "installation_date": "Data uruchomienia",
-          "yearly_cost": "Koszty roczne"
-        }
-      },
-      "offsets": {
-        "title": "Dane Historyczne",
-        "description": "Wprowadź dane sprzed uruchomienia tej integracji.",
-        "data": {
-          "savings_offset": "Kwota już zamortyzowana (PLN)",
-          "energy_offset_self_consumption": "Autokonsumpcja przed użyciem (kWh)",
-          "energy_offset_export": "Eksport przed użyciem (kWh)"
-        }
-      },
-      "quota": {
-        "title": "Limit Zużycia (Quota)",
-        "description": "Sprawdź, czy mieścisz się w rocznym limicie tańszego prądu.",
-        "data": {
+          "yearly_cost": "Koszty roczne",
           "quota_enabled": "Włącz roczny limit zużycia",
           "quota_yearly_kwh": "Roczny limit (kWh)",
           "quota_start_date": "Data startu limitu",
           "quota_start_meter": "Stan licznika poboru na starcie (opcjonalnie)",
           "quota_monthly_rate": "Miesięczna wpłata / zaliczka"
+        }
+      },
+      "amortisation": {
+        "title": "Trwałość Amortyzacji",
+        "description": "Pomocnik do trwałego przechowywania oszczędności + offsety dla danych historycznych sprzed śledzenia.",
+        "data": {
+          "amortisation_helper": "Pomocnik Amortyzacji (input_number)",
+          "restore_from_helper": "Przywróć wartości z pomocnika?",
+          "savings_offset": "Kwota już zamortyzowana (PLN)",
+          "energy_offset_self_consumption": "Autokonsumpcja przed użyciem (kWh)",
+          "energy_offset_export": "Eksport przed użyciem (kWh)"
         }
       },
       "battery": {

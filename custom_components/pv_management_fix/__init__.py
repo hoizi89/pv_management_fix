@@ -42,6 +42,7 @@ from .const import (
     PV_STRING_CONFIGS,
     CONF_PV_POWER_ENTITY, CONF_HOUSE_POWER_ENTITY, CONF_PV_PEAK_POWER,
     DEFAULT_PV_PEAK_POWER, SURPLUS_RATIOS,
+    CONF_SHIFTABLE_LOAD_ENTITY,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ class PVManagementFixController:
         # Aktuelle Leistungs-Werte (W) fuer PV-Ueberschuss-Berechnung
         self._pv_power = 0.0     # W
         self._house_power = 0.0  # W
+        self._shiftable_load_power = 0.0  # W (z.B. WP-Last) — wird beim Surplus ausgeklammert
 
         # Letzte bekannte Preise (für Fallback wenn Sensor temporär nicht verfügbar)
         self._last_known_electricity_price: float | None = None
@@ -183,6 +185,10 @@ class PVManagementFixController:
         self.house_power_entity = opts.get(CONF_HOUSE_POWER_ENTITY)
         # User-Override; None = auto-derive aus PV-Strings (kWp oder gemessener Peak)
         self._configured_pv_peak_power = opts.get(CONF_PV_PEAK_POWER)
+        # Optionaler "PV-gesteuerter Verbraucher" (W) — Last wird vom Hausverbrauch
+        # abgezogen, damit der Verbraucher sich nicht durch eigene Last selbst
+        # unter die Schwelle treibt (Anti-Selbstaufzehrung).
+        self.shiftable_load_entity = opts.get(CONF_SHIFTABLE_LOAD_ENTITY)
 
         # Preis-Konfiguration
         self.electricity_price = opts.get(CONF_ELECTRICITY_PRICE, DEFAULT_ELECTRICITY_PRICE)
@@ -385,14 +391,34 @@ class PVManagementFixController:
         return self._house_power
 
     @property
-    def current_pv_surplus_w(self) -> float:
-        """Aktueller PV-Ueberschuss (W) = pv_power - house_power, clamp >= 0.
+    def shiftable_load_power(self) -> float:
+        """Aktuelle Last des PV-gesteuerten Verbrauchers (W) — 0 wenn nicht konfiguriert."""
+        if not self.shiftable_load_entity:
+            return 0.0
+        return self._shiftable_load_power
 
-        Beide Entities muessen konfiguriert sein, sonst 0.
+    @property
+    def effective_house_power(self) -> float:
+        """Hausverbrauch OHNE die shiftable_load (W) — Anti-Selbstaufzehrung.
+
+        Wenn ein PV-gesteuerter Verbraucher laeuft, wuerde seine eigene Last die
+        Surplus-Rechnung verfaelschen — er wuerde sich selbst durch die eigene Last
+        unter die Schwelle treiben und pendeln. Daher wird seine Last hier
+        abgezogen: 'was der Rest des Hauses verbraucht'.
+        """
+        return max(0.0, self._house_power - self.shiftable_load_power)
+
+    @property
+    def current_pv_surplus_w(self) -> float:
+        """Aktueller PV-Ueberschuss (W) = pv_power - effective_house_power, clamp >= 0.
+
+        PV-Leistung und Hausverbrauch-Sensor muessen konfiguriert sein, sonst 0.
+        Wenn shiftable_load_entity konfiguriert ist, wird seine Last vom
+        Hausverbrauch ausgeklammert (Anti-Selbstaufzehrung).
         """
         if not (self.pv_power_entity and self.house_power_entity):
             return 0.0
-        return max(0.0, self._pv_power - self._house_power)
+        return max(0.0, self._pv_power - self.effective_house_power)
 
     @property
     def pv_peak_power(self) -> float:
@@ -1941,6 +1967,9 @@ class PVManagementFixController:
         elif entity_id == self.house_power_entity:
             self._house_power = value
             self._notify_entities()
+        elif entity_id == self.shiftable_load_entity:
+            self._shiftable_load_power = value
+            self._notify_entities()
         elif entity_id in (self.battery_soc_entity, self.battery_charge_entity, self.battery_discharge_entity):
             self._notify_entities()
         elif entity_id == self.benchmark_heatpump_entity:
@@ -2032,6 +2061,7 @@ class PVManagementFixController:
         for entity_id, attr in [
             (self.pv_power_entity, "_pv_power"),
             (self.house_power_entity, "_house_power"),
+            (self.shiftable_load_entity, "_shiftable_load_power"),
         ]:
             if entity_id:
                 state = self.hass.states.get(entity_id)

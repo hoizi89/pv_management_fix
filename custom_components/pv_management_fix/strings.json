@@ -57,11 +57,9 @@
         "title": "PV Energy Management+ Einstellungen",
         "description": "Hier findest du alle Funktionen. Tipp: Batterie, Benchmark und PV-Strings aktivieren fuer den vollen Funktionsumfang!",
         "menu_options": {
-          "sensors": "Sensoren",
-          "prices": "Strompreise & Amortisation",
-          "helper": "Amortisation Helper",
-          "offsets": "Historische Daten",
-          "quota": "Stromkontingent",
+          "sensors": "Sensoren & Leistungen",
+          "tariff": "Tarif & Kosten",
+          "amortisation": "Amortisation-Persistenz",
           "battery": "Batterie",
           "benchmark": "Energie-Benchmark",
           "pv_strings": "PV-Strings",
@@ -69,15 +67,16 @@
         }
       },
       "sensors": {
-        "title": "Energie-Sensoren",
-        "description": "Konfiguriere die Sensoren fuer Energie-Tracking und Spot-Vergleich.",
+        "title": "Sensoren & Leistungen",
+        "description": "Energie-Zaehler (kWh) fuer Tracking + Live-Leistungen (W) fuer die PV-Ueberschuss-Sensoren. PV-Leistung und Hausverbrauch (W) brauchst du fuer die low/medium/high Binary-Sensors. Der 'PV-gesteuerte Verbraucher' (optional) verhindert Selbstaufzehrung — siehe Beschreibung dort.",
         "data": {
-          "pv_production_entity": "PV Produktion Sensor (kWh)",
-          "grid_export_entity": "Netzeinspeisung Sensor (kWh)",
-          "grid_import_entity": "Netzbezug Sensor (kWh)",
-          "consumption_entity": "Hausverbrauch Sensor (kWh)",
-          "pv_power_entity": "Aktuelle PV-Leistung (W, optional)",
-          "house_power_entity": "Aktueller Hausverbrauch (W, optional)",
+          "pv_production_entity": "PV Produktion (kWh)",
+          "grid_export_entity": "Netzeinspeisung (kWh)",
+          "grid_import_entity": "Netzbezug (kWh)",
+          "consumption_entity": "Hausverbrauch (kWh)",
+          "pv_power_entity": "Aktuelle PV-Leistung (W)",
+          "house_power_entity": "Aktueller Hausverbrauch (W)",
+          "shiftable_load_entity": "PV-gesteuerter Verbraucher (W)",
           "pv_peak_power": "PV-Anlagen-Peakleistung (W, auto)"
         },
         "data_description": {
@@ -85,14 +84,15 @@
           "grid_export_entity": "Stetig steigender Energiezaehler (kWh) fuer Netzeinspeisung.",
           "grid_import_entity": "Stetig steigender Energiezaehler (kWh) fuer Netzbezug.",
           "consumption_entity": "Stetig steigender Energiezaehler (kWh) fuer Hausverbrauch.",
-          "pv_power_entity": "Aktuelle PV-Leistung in Watt (W). Pflicht fuer PV-Ueberschuss-Sensoren.",
-          "house_power_entity": "Aktueller Hausverbrauch in Watt (W). Pflicht fuer PV-Ueberschuss-Sensoren.",
-          "pv_peak_power": "Leer lassen → wird automatisch aus deinen PV-Strings abgeleitet (Summe der konfigurierten kWp × 1000 oder gemessener Peak). Nur eintragen wenn du einen anderen Wert erzwingen willst."
+          "pv_power_entity": "Aktuelle PV-Leistung in Watt (z.B. vom Wechselrichter). Zusammen mit Hausverbrauch (W) erforderlich fuer die PV-Ueberschuss-Sensoren.",
+          "house_power_entity": "Aktueller Hausverbrauch in Watt (z.B. vom Smart-Meter). Surplus = PV-Leistung - Hausverbrauch.",
+          "shiftable_load_entity": "Optional. Wenn dein PV-aware Verbraucher (z.B. die Waermepumpe) laeuft, wird seine Last vom Hausverbrauch abgezogen. Sonst wuerde der Verbraucher durch seine eigene Last den Surplus unter die Schwelle druecken und immer wieder zwischen EIN und AUS pendeln.",
+          "pv_peak_power": "Leer lassen → wird automatisch aus deinen PV-Strings abgeleitet (Summe der konfigurierten kWp × 1000 oder gemessener Peak). Nur eintragen wenn du einen anderen Wert erzwingen willst. Steuert die Schwellen low/medium/high (5/15/30 % vom Peak)."
         }
       },
-      "prices": {
-        "title": "Strompreise & Amortisation",
-        "description": "Trage die Werte von deiner Stromrechnung ein. Alternativ: Nur den Aufschlagfaktor ganz unten verwenden.",
+      "tariff": {
+        "title": "Tarif & Kosten",
+        "description": "Strompreise, Einspeiseverguetung, Anschaffungskosten und Stromkontingent. Trage die Werte von deiner Stromrechnung ein. Alternativ: Nur den Aufschlagfaktor verwenden.",
         "data": {
           "fixed_price": "Strompreis netto (ct/kWh) — Fallback",
           "grid_fee": "Netzentgelt (ct/kWh)",
@@ -105,7 +105,12 @@
           "feed_in_tariff_entity": "Einspeiseverguetung per Sensor (optional)",
           "installation_cost": "Anschaffungskosten PV-Anlage",
           "installation_date": "Installationsdatum",
-          "yearly_cost": "Jaehrliche Kosten"
+          "yearly_cost": "Jaehrliche Kosten",
+          "quota_enabled": "Stromkontingent aktivieren",
+          "quota_yearly_kwh": "Jahres-Kontingent (kWh)",
+          "quota_start_date": "Startdatum der Tarifperiode",
+          "quota_start_meter": "Zaehlerstand Netzbezug am Startdatum (optional)",
+          "quota_monthly_rate": "Monatlicher Abschlag (EUR)"
         },
         "data_description": {
           "fixed_price": "Statischer Arbeitspreis netto. Wird nur verwendet wenn KEIN Sensor ausgewaehlt ist.",
@@ -119,39 +124,30 @@
           "feed_in_tariff_entity": "Sensor der die aktuelle Einspeiseverguetung liefert (z.B. OeMAG Marktpreis). Ueberschreibt den statischen Wert oben. Einheit (ct/EUR) wird automatisch erkannt.",
           "installation_cost": "Gesamtkosten der PV-Anlage (fuer Amortisationsrechnung)",
           "installation_date": "Fuer Statistiken und Prognosen",
-          "yearly_cost": "Jaehrliche Kosten wie Versicherung, Wartung etc. Werden bei der Amortisation beruecksichtigt."
+          "yearly_cost": "Jaehrliche Kosten wie Versicherung, Wartung etc. Werden bei der Amortisation beruecksichtigt.",
+          "quota_enabled": "Aktiviert die Stromkontingent-Sensoren (Fixstrom-Tarif mit Jahres-kWh-Budget)",
+          "quota_yearly_kwh": "Dein Jahres-Kontingent in kWh (z.B. 4000 kWh)",
+          "quota_start_date": "Beginn der Tarifperiode (von Rechnung ablesen, muss nicht 1.1. sein)",
+          "quota_start_meter": "Von Rechnung oder Sensor-Historie ablesen. Bei 0 wird der Zaehlerstand automatisch am Startdatum erfasst.",
+          "quota_monthly_rate": "Optional: Monatlicher Abschlag in EUR (nur zur Anzeige)"
         }
       },
-      "offsets": {
-        "title": "Historische Daten",
-        "description": "Nur noetig wenn deine PV-Anlage schon VOR dieser Integration lief. Bei Neuinstallation alles auf 0 lassen.",
+      "amortisation": {
+        "title": "Amortisation-Persistenz",
+        "description": "Helper fuer dauerhaft gespeicherte Gesamtersparnis + Offsets fuer historische Daten von vor dem Tracking-Start.",
         "data": {
+          "amortisation_helper": "Amortisation Helper (input_number)",
+          "restore_from_helper": "Werte vom Helper wiederherstellen?",
           "savings_offset": "Bereits amortisierter Betrag (EUR)",
           "energy_offset_self_consumption": "Selbst verbrauchte PV-Energie vor Tracking (kWh)",
           "energy_offset_export": "Ins Netz eingespeiste Energie vor Tracking (kWh)"
         },
         "data_description": {
+          "amortisation_helper": "input_number Helper, in dem die Gesamtersparnis gespeichert wird. So gehen Daten bei Updates/Neuinstallation nicht verloren.",
+          "restore_from_helper": "Beim Start die Ersparnis vom Helper-Wert uebernehmen.",
           "savings_offset": "Wieviel EUR hat sich die PV-Anlage bereits 'zurueckverdient'? Z.B. aus vorherigem Tracking. Ersparnis wird zum aktuellen Strompreis berechnet.",
           "energy_offset_self_consumption": "PV-Strom den du selbst verbraucht hast, bevor diese Integration gestartet wurde. Z.B. aus Energy Dashboard (Eigenverbrauch = PV Produktion minus Einspeisung).",
           "energy_offset_export": "PV-Strom den du ins Netz eingespeist hast, bevor diese Integration gestartet wurde. Z.B. am Einspeisezaehler oder Energy Dashboard."
-        }
-      },
-      "quota": {
-        "title": "Stromkontingent",
-        "description": "Fixstrom-Tarif mit Jahres-kWh-Kontingent. Zeigt ob du im Budget bist.",
-        "data": {
-          "quota_enabled": "Stromkontingent aktivieren",
-          "quota_yearly_kwh": "Jahres-Kontingent (kWh)",
-          "quota_start_date": "Startdatum der Tarifperiode",
-          "quota_start_meter": "Zaehlerstand Netzbezug am Startdatum (optional)",
-          "quota_monthly_rate": "Monatlicher Abschlag (EUR)"
-        },
-        "data_description": {
-          "quota_enabled": "Aktiviert die Stromkontingent-Sensoren",
-          "quota_yearly_kwh": "Dein Jahres-Kontingent in kWh (z.B. 4000 kWh)",
-          "quota_start_date": "Beginn der Tarifperiode (von Rechnung ablesen, muss nicht 1.1. sein)",
-          "quota_start_meter": "Von Rechnung oder Sensor-Historie ablesen. Bei 0 wird der Zaehlerstand automatisch am Startdatum erfasst.",
-          "quota_monthly_rate": "Optional: Monatlicher Abschlag in EUR (nur zur Anzeige)"
         }
       },
       "battery": {
