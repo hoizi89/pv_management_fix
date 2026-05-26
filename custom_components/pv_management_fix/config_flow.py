@@ -266,12 +266,14 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
                 self._optional_entity(CONF_CONSUMPTION_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
-                # PV-Ueberschuss-Sensoren: aktuelle Leistungen (W) + Anlagen-Peak
+                # PV-Ueberschuss-Sensoren: aktuelle Leistungen (W) + optionaler Peak-Override
                 self._optional_entity(CONF_PV_POWER_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
                 self._optional_entity(CONF_HOUSE_POWER_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
-                vol.Optional(CONF_PV_PEAK_POWER, default=self._get_val(CONF_PV_PEAK_POWER, DEFAULT_PV_PEAK_POWER)):
+                # Leer lassen → auto-derive aus PV-Strings (kWp) oder gemessenem Peak
+                vol.Optional(CONF_PV_PEAK_POWER,
+                             description={"suggested_value": self._get_val(CONF_PV_PEAK_POWER)}):
                     selector.NumberSelector(selector.NumberSelectorConfig(
                         min=500, max=50000, step=100, unit_of_measurement="W",
                         mode=selector.NumberSelectorMode.BOX,

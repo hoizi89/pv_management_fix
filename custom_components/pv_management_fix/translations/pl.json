@@ -79,7 +79,7 @@
           "consumption_entity": "Sensor Zużycia Domu (kWh)",
           "pv_power_entity": "Aktualna moc PV (W, opcjonalnie)",
           "house_power_entity": "Aktualne zużycie domu (W, opcjonalnie)",
-          "pv_peak_power": "Moc szczytowa instalacji PV (W)"
+          "pv_peak_power": "Moc szczytowa instalacji PV (W, auto)"
         }
       },
       "prices": {
