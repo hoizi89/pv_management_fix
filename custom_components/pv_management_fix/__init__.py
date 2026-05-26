@@ -40,6 +40,8 @@ from .const import (
     DEFAULT_QUOTA_START_METER, DEFAULT_QUOTA_MONTHLY_RATE,
     PRICE_UNIT_CENT,
     PV_STRING_CONFIGS,
+    CONF_PV_POWER_ENTITY, CONF_HOUSE_POWER_ENTITY, CONF_PV_PEAK_POWER,
+    DEFAULT_PV_PEAK_POWER, SURPLUS_RATIOS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -77,6 +79,10 @@ class PVManagementFixController:
         self._grid_export_kwh = 0.0
         self._grid_import_kwh = 0.0
         self._consumption_kwh = 0.0
+
+        # Aktuelle Leistungs-Werte (W) fuer PV-Ueberschuss-Berechnung
+        self._pv_power = 0.0     # W
+        self._house_power = 0.0  # W
 
         # Letzte bekannte Preise (für Fallback wenn Sensor temporär nicht verfügbar)
         self._last_known_electricity_price: float | None = None
@@ -171,6 +177,11 @@ class PVManagementFixController:
         self.grid_export_entity = opts.get(CONF_GRID_EXPORT_ENTITY)
         self.grid_import_entity = opts.get(CONF_GRID_IMPORT_ENTITY)
         self.consumption_entity = opts.get(CONF_CONSUMPTION_ENTITY)
+
+        # PV-Ueberschuss: Live-Leistungssensoren (W) + Anlagen-Peak
+        self.pv_power_entity = opts.get(CONF_PV_POWER_ENTITY)
+        self.house_power_entity = opts.get(CONF_HOUSE_POWER_ENTITY)
+        self.pv_peak_power = opts.get(CONF_PV_PEAK_POWER, DEFAULT_PV_PEAK_POWER)
 
         # Preis-Konfiguration
         self.electricity_price = opts.get(CONF_ELECTRICITY_PRICE, DEFAULT_ELECTRICITY_PRICE)
@@ -360,6 +371,32 @@ class PVManagementFixController:
     def consumption_kwh(self) -> float:
         """Aktueller Verbrauch vom Sensor."""
         return self._consumption_kwh
+
+    # --- PV-Leistung (W) + Ueberschuss --------------------------------------
+    @property
+    def pv_power(self) -> float:
+        """Aktuelle PV-Leistung in W (falls pv_power_entity konfiguriert)."""
+        return self._pv_power
+
+    @property
+    def house_power(self) -> float:
+        """Aktueller Hausverbrauch in W (falls house_power_entity konfiguriert)."""
+        return self._house_power
+
+    @property
+    def current_pv_surplus_w(self) -> float:
+        """Aktueller PV-Ueberschuss (W) = pv_power - house_power, clamp >= 0.
+
+        Beide Entities muessen konfiguriert sein, sonst 0.
+        """
+        if not (self.pv_power_entity and self.house_power_entity):
+            return 0.0
+        return max(0.0, self._pv_power - self._house_power)
+
+    @property
+    def surplus_thresholds_w(self) -> dict[str, float]:
+        """Auto-derived ON-Schwellen pro Stufe (ratio * pv_peak_power)."""
+        return {key: self.pv_peak_power * ratio for key, ratio in SURPLUS_RATIOS.items()}
 
     @property
     def self_consumption_kwh(self) -> float:
@@ -1860,6 +1897,12 @@ class PVManagementFixController:
             changed = True
         elif entity_id == self.consumption_entity:
             self._consumption_kwh = self._convert_energy_to_kwh(entity_id, value)
+        elif entity_id == self.pv_power_entity:
+            self._pv_power = value
+            self._notify_entities()
+        elif entity_id == self.house_power_entity:
+            self._house_power = value
+            self._notify_entities()
         elif entity_id in (self.battery_soc_entity, self.battery_charge_entity, self.battery_discharge_entity):
             self._notify_entities()
         elif entity_id == self.benchmark_heatpump_entity:
@@ -1946,6 +1989,19 @@ class PVManagementFixController:
             self._last_grid_export_kwh = self._grid_export_kwh
         if sensor_available["_grid_import_kwh"] and self._last_grid_import_kwh is None:
             self._last_grid_import_kwh = self._grid_import_kwh
+
+        # Initiale Werte fuer Leistungs-Sensoren (W, kein Wh→kWh)
+        for entity_id, attr in [
+            (self.pv_power_entity, "_pv_power"),
+            (self.house_power_entity, "_house_power"),
+        ]:
+            if entity_id:
+                state = self.hass.states.get(entity_id)
+                if state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                    try:
+                        setattr(self, attr, float(state.state))
+                    except (ValueError, TypeError):
+                        pass
 
         # Quota: Auto-Capture Zählerstand nur wenn 0 eingetragen
         # Erst am/nach Startdatum erfassen, damit kein Verbrauch von vor der Periode mitgezählt wird

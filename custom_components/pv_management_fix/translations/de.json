@@ -76,13 +76,19 @@
           "pv_production_entity": "PV Produktion Sensor (kWh)",
           "grid_export_entity": "Netzeinspeisung Sensor (kWh)",
           "grid_import_entity": "Netzbezug Sensor (kWh)",
-          "consumption_entity": "Hausverbrauch Sensor (kWh)"
+          "consumption_entity": "Hausverbrauch Sensor (kWh)",
+          "pv_power_entity": "Aktuelle PV-Leistung (W, optional)",
+          "house_power_entity": "Aktueller Hausverbrauch (W, optional)",
+          "pv_peak_power": "PV-Anlagen-Peakleistung (W)"
         },
         "data_description": {
           "pv_production_entity": "Stetig steigender Energiezähler (kWh). Bei Leistungssensor (W): Erst Riemann-Integral-Helfer anlegen.",
           "grid_export_entity": "Stetig steigender Energiezähler (kWh) für Netzeinspeisung.",
           "grid_import_entity": "Stetig steigender Energiezähler (kWh) für Netzbezug.",
-          "consumption_entity": "Stetig steigender Energiezähler (kWh) für Hausverbrauch."
+          "consumption_entity": "Stetig steigender Energiezähler (kWh) für Hausverbrauch.",
+          "pv_power_entity": "Aktuelle PV-Leistung in Watt (W). Pflicht für PV-Überschuss-Sensoren.",
+          "house_power_entity": "Aktueller Hausverbrauch in Watt (W). Pflicht für PV-Überschuss-Sensoren.",
+          "pv_peak_power": "Peak-Leistung deiner PV-Anlage (z.B. 10000 für 10 kWp). Steuert die Schwellen low/medium/high (5/15/30 % vom Peak)."
         }
       },
       "prices": {
@@ -311,6 +317,7 @@
       "gesamt_tagesproduktion": { "name": "Gesamt Tagesproduktion" },
       "gesamt_peak": { "name": "Gesamt Peak" },
       "gesamt_peak_heute": { "name": "Gesamt Peak Heute" },
+      "pv_ueberschuss": { "name": "PV-Überschuss" },
       "verbrauch_prognose_1h": { "name": "Verbrauch Prognose 1h" },
       "verbrauch_prognose_6h": { "name": "Verbrauch Prognose 6h" },
       "verbrauch_prognose_heute_rest": { "name": "Verbrauch Prognose Heute Rest" },

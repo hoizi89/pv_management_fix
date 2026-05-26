@@ -123,6 +123,9 @@ async def async_setup_entry(
         # === ROI ===
         ROISensor(ctrl, name),
         AnnualROISensor(ctrl, name),
+
+        # === PV SURPLUS (live W) ===
+        PVSurplusValueSensor(ctrl, name),
     ]
 
     # === EXPORT-DEPENDENT SENSORS (only if grid export sensor configured) ===
@@ -2182,3 +2185,45 @@ class LoadForecast24hSensor(_ForecastBaseSensor):
         except Exception:
             pass
         return attrs
+
+
+# =============================================================================
+# PV SURPLUS (live)
+# =============================================================================
+
+
+class PVSurplusValueSensor(BaseEntity):
+    """Aktueller PV-Ueberschuss in W (pv_power - house_power, clamp >= 0)."""
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "PV Ueberschuss",
+            unit="W",
+            icon="mdi:solar-power-variant",
+            state_class=SensorStateClass.MEASUREMENT,
+            device_class=SensorDeviceClass.POWER,
+        )
+
+    @property
+    def available(self) -> bool:
+        return (
+            bool(self.ctrl.pv_power_entity)
+            and bool(self.ctrl.house_power_entity)
+            and super().available
+        )
+
+    @property
+    def native_value(self) -> float:
+        return round(self.ctrl.current_pv_surplus_w, 0)
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "pv_leistung_w": round(self.ctrl.pv_power, 0),
+            "hausverbrauch_w": round(self.ctrl.house_power, 0),
+            "schwellen_w": {
+                k: round(v, 0) for k, v in self.ctrl.surplus_thresholds_w.items()
+            },
+        }

@@ -21,6 +21,8 @@ from .const import (
     CONF_QUOTA_START_METER, CONF_QUOTA_MONTHLY_RATE,
     CONF_BATTERY_SOC_ENTITY, CONF_BATTERY_CHARGE_ENTITY,
     CONF_BATTERY_DISCHARGE_ENTITY, CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY,
+    CONF_PV_POWER_ENTITY, CONF_HOUSE_POWER_ENTITY,
+    CONF_PV_PEAK_POWER, DEFAULT_PV_PEAK_POWER,
     CONF_BENCHMARK_ENABLED, CONF_BENCHMARK_HOUSEHOLD_SIZE, CONF_BENCHMARK_COUNTRY,
     CONF_BENCHMARK_HEATPUMP, CONF_BENCHMARK_HEATPUMP_ENTITY, CONF_BENCHMARK_HEATPUMP_DATE,
     DEFAULT_BENCHMARK_ENABLED, DEFAULT_BENCHMARK_HOUSEHOLD_SIZE, DEFAULT_BENCHMARK_COUNTRY,
@@ -264,6 +266,16 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
                 self._optional_entity(CONF_CONSUMPTION_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
+                # PV-Ueberschuss-Sensoren: aktuelle Leistungen (W) + Anlagen-Peak
+                self._optional_entity(CONF_PV_POWER_ENTITY):
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
+                self._optional_entity(CONF_HOUSE_POWER_ENTITY):
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
+                vol.Optional(CONF_PV_PEAK_POWER, default=self._get_val(CONF_PV_PEAK_POWER, DEFAULT_PV_PEAK_POWER)):
+                    selector.NumberSelector(selector.NumberSelectorConfig(
+                        min=500, max=50000, step=100, unit_of_measurement="W",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )),
             })
         )
 

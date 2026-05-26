@@ -76,13 +76,19 @@
           "pv_production_entity": "PV Production Sensor (kWh)",
           "grid_export_entity": "Grid Export Sensor (kWh)",
           "grid_import_entity": "Grid Import Sensor (kWh)",
-          "consumption_entity": "Consumption Sensor (kWh)"
+          "consumption_entity": "Consumption Sensor (kWh)",
+          "pv_power_entity": "Current PV Power (W, optional)",
+          "house_power_entity": "Current House Power (W, optional)",
+          "pv_peak_power": "PV System Peak Power (W)"
         },
         "data_description": {
           "pv_production_entity": "Ever-increasing energy counter (kWh). For power sensors (W): Create a Riemann integral helper first.",
           "grid_export_entity": "Ever-increasing energy counter (kWh) for grid export.",
           "grid_import_entity": "Ever-increasing energy counter (kWh) for grid import.",
-          "consumption_entity": "Ever-increasing energy counter (kWh) for household consumption."
+          "consumption_entity": "Ever-increasing energy counter (kWh) for household consumption.",
+          "pv_power_entity": "Current PV power in Watts (W). Required for PV surplus sensors.",
+          "house_power_entity": "Current house power consumption in Watts (W). Required for PV surplus sensors.",
+          "pv_peak_power": "Peak power of your PV system (e.g. 10000 for 10 kWp). Drives the low/medium/high thresholds (5/15/30 % of peak)."
         }
       },
       "prices": {
@@ -318,6 +324,7 @@
       "gesamt_tagesproduktion": { "name": "Total Daily Production" },
       "gesamt_peak": { "name": "Total Peak" },
       "gesamt_peak_heute": { "name": "Total Peak Today" },
+      "pv_ueberschuss": { "name": "PV Surplus" },
       "verbrauch_prognose_1h": { "name": "Load Forecast 1h" },
       "verbrauch_prognose_6h": { "name": "Load Forecast 6h" },
       "verbrauch_prognose_heute_rest": { "name": "Load Forecast Rest of Today" },

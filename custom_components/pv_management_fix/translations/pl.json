@@ -76,7 +76,10 @@
           "pv_production_entity": "Sensor Produkcji PV (kWh)",
           "grid_export_entity": "Sensor Eksportu (kWh)",
           "grid_import_entity": "Sensor Poboru (kWh)",
-          "consumption_entity": "Sensor Zużycia Domu (kWh)"
+          "consumption_entity": "Sensor Zużycia Domu (kWh)",
+          "pv_power_entity": "Aktualna moc PV (W, opcjonalnie)",
+          "house_power_entity": "Aktualne zużycie domu (W, opcjonalnie)",
+          "pv_peak_power": "Moc szczytowa instalacji PV (W)"
         }
       },
       "prices": {
@@ -260,6 +263,7 @@
       "gesamt_tagesproduktion": { "name": "Dzienna produkcja - Suma" },
       "gesamt_peak": { "name": "Moc Szczytowa - Rekord" },
       "gesamt_peak_heute": { "name": "Moc Szczytowa - Dzisiaj" },
+      "pv_ueberschuss": { "name": "Nadwyżka PV" },
       "verbrauch_prognose_1h": { "name": "Prognoza zużycia 1h" },
       "verbrauch_prognose_6h": { "name": "Prognoza zużycia 6h" },
       "verbrauch_prognose_heute_rest": { "name": "Prognoza zużycia — reszta dnia" },
