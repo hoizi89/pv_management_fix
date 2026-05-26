@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
     DOMAIN, DATA_CTRL, CONF_NAME,
@@ -51,12 +52,16 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class PVSurplusBinarySensor(BinarySensorEntity):
+class PVSurplusBinarySensor(BinarySensorEntity, RestoreEntity):
     """Binary Sensor fuer PV-Ueberschuss-Stufen (low/medium/high).
 
     Auto-derived Schwelle = SURPLUS_RATIOS[level] * pv_peak_power.
     Hysterese: ON bei surplus >= threshold, OFF bei surplus < threshold * (1 - HYSTERESIS_RATIO).
     Anti-Flacker: ON erst nach SURPLUS_ON_DELAY s stabilem Ueberschuss, OFF erst nach SURPLUS_OFF_DELAY s.
+
+    Persistenz: Erbt von RestoreEntity — beim HA-Restart wird der letzte
+    State aus dem Recorder wiederhergestellt, damit Verbraucher nicht durch
+    den ON-Delay-Cycle unterbrochen werden.
 
     Fuer PV-aware Verbraucher (WP-Kuehlung, Waschmaschine, Geschirrspueler, EV).
     """
@@ -80,10 +85,21 @@ class PVSurplusBinarySensor(BinarySensorEntity):
         self._pending_cancel = None
 
     async def async_added_to_hass(self):
+        await super().async_added_to_hass()
         self._removed = False
         self.ctrl.register_entity_listener(self._on_ctrl_update)
-        # Initial state ohne Delay (beim Start direkt commit)
-        self._committed_state = self._compute_desired_state()
+
+        # Letzten state aus Recorder wiederherstellen (Restart-Robustheit).
+        # Sonst wuerde der Binary-Sensor nach HA-Restart bei OFF starten,
+        # waehrend die Quellsensoren noch nicht ready sind, und nachgelagerte
+        # Verbraucher (z.B. WP-Kuehlung-Automation) wuerden den ON-Delay-Cycle
+        # noch einmal durchlaufen muessen.
+        last_state = await self.async_get_last_state()
+        if last_state is not None and last_state.state in ("on", "off"):
+            self._committed_state = last_state.state == "on"
+        else:
+            # Erstinstallation / kein Recorder-Eintrag → aus aktuellem state ableiten
+            self._committed_state = self._compute_desired_state()
 
     async def async_will_remove_from_hass(self):
         self._removed = True
