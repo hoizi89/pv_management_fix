@@ -259,6 +259,7 @@
       "gesamt_peak": { "name": "Moc Szczytowa - Rekord" },
       "gesamt_peak_heute": { "name": "Moc Szczytowa - Dzisiaj" },
       "pv_ueberschuss": { "name": "Nadwyżka PV" },
+      "pv_peak": { "name": "Moc Szczytowa PV" },
       "verbrauch_prognose_1h": { "name": "Prognoza zużycia 1h" },
       "verbrauch_prognose_6h": { "name": "Prognoza zużycia 6h" },
       "verbrauch_prognose_heute_rest": { "name": "Prognoza zużycia — reszta dnia" },
