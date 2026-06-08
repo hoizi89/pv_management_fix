@@ -124,10 +124,16 @@ async def async_setup_entry(
         ROISensor(ctrl, name),
         AnnualROISensor(ctrl, name),
 
-        # === PV SURPLUS (live W) ===
-        PVSurplusValueSensor(ctrl, name),
-        PVPeakValueSensor(ctrl, name),
     ]
+
+    # === PV SURPLUS (live W) — only if both power sensors are configured ===
+    # Without pv_power + house_power these sensors are permanently "unavailable",
+    # so we don't create them at all instead of cluttering the device.
+    if ctrl.pv_power_entity and ctrl.house_power_entity:
+        entities.extend([
+            PVSurplusValueSensor(ctrl, name),
+            PVPeakValueSensor(ctrl, name),
+        ])
 
     # === EXPORT-DEPENDENT SENSORS (only if grid export sensor configured) ===
     if ctrl.grid_export_entity:
