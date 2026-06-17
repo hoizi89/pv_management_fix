@@ -134,7 +134,8 @@ RANGE_PRICE_EUR: Final[dict] = {"min": 0.01, "max": 1.0, "step": 0.001}
 RANGE_PRICE_CENT: Final[dict] = {"min": 1.0, "max": 100.0, "step": 0.01}
 RANGE_TARIFF_EUR: Final[dict] = {"min": 0.0, "max": 0.5, "step": 0.001}
 RANGE_TARIFF_CENT: Final[dict] = {"min": 0.0, "max": 50.0, "step": 0.01}
-RANGE_COST: Final[dict] = {"min": 0.0, "max": 200000.0, "step": 1.0}
+# Hohes Maximum, damit auch schwächere Landeswährungen (HUF, JPY, IDR …) passen (Issue #9)
+RANGE_COST: Final[dict] = {"min": 0.0, "max": 100000000.0, "step": 1.0}
 RANGE_OFFSET: Final[dict] = {"min": 0.0, "max": 100000.0, "step": 0.01}
 RANGE_ENERGY_OFFSET: Final[dict] = {"min": 0.0, "max": 500000.0, "step": 0.01}
 RANGE_MARKUP_FACTOR: Final[dict] = {"min": 1.0, "max": 5.0, "step": 0.1}
