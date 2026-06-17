@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback, Event
 from homeassistant.const import EVENT_STATE_CHANGED, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN, DATA_CTRL, PLATFORMS,
@@ -1432,7 +1433,7 @@ class PVManagementFixController:
         self._tracked_grid_import_kwh = safe_float(data.get("tracked_grid_import_kwh"))
         self._total_grid_import_cost = safe_float(data.get("total_grid_import_cost"))
 
-        today = date.today()
+        today = dt_util.now().date()
 
         # Daily tracking restore
         daily_reset_str = data.get("daily_reset_date")
@@ -1900,7 +1901,8 @@ class PVManagementFixController:
         self._total_feed_in_kwh = new_total_feed_in
 
         # Tägliches Tracking: Reset bei Tageswechsel
-        today = date.today()
+        # dt_util.now() respektiert die HA-Zeitzone (date.today() = OS-Zeit, Issue #7)
+        today = dt_util.now().date()
         if self._daily_tracking_date != today:
             self._daily_grid_import_cost = 0.0
             self._daily_grid_import_kwh = 0.0
@@ -1967,6 +1969,50 @@ class PVManagementFixController:
         self._last_grid_export_kwh = current_export
         self._last_grid_import_kwh = current_import
         self._notify_entities()
+
+    @callback
+    def _handle_daily_rollover(self, now: datetime) -> None:
+        """Garantierter Tages-Reset um Mitternacht (Issue #7).
+
+        Unabhängig von Sensor-Events: GoodWe-Wechselrichter gehen nachts
+        offline (Sensoren unavailable), dadurch lief der bisherige
+        event-getriebene Reset in _process_energy_update() ggf. erst Stunden
+        später (oder gar nicht). Dieser Zeit-Trigger feuert verlässlich.
+        """
+        today = dt_util.now().date()
+        if self._daily_tracking_date == today:
+            return
+        _LOGGER.debug("Mitternachts-Reset: Tageswerte werden zurückgesetzt (%s)", today)
+        self._daily_grid_import_cost = 0.0
+        self._daily_grid_import_kwh = 0.0
+        self._daily_feed_in_earnings = 0.0
+        self._daily_feed_in_kwh = 0.0
+        self._daily_tracking_date = today
+        # Quota: Zählerstand für Tagesbeginn merken
+        if self._grid_import_kwh and self._grid_import_kwh > 0:
+            self._quota_day_start_meter = self._grid_import_kwh
+            self._quota_day_start_date = today
+        self._notify_entities()
+
+    @callback
+    def _handle_periodic_refresh(self, now: datetime) -> None:
+        """Periodischer Heartbeat (Issue #8).
+
+        Erzwingt eine Neuberechnung + Render, auch wenn die Quell-Sensoren
+        gerade keine State-Events feuern. Ohne diesen Tick blieb die
+        Hauptseite (Amortisation/Autarkie/Ersparnis) bei spärlichen
+        Sensor-Updates stehen. _process_energy_update() ist idempotent:
+        ohne neue Deltas ändert sich nichts außer dem Render-Zeitpunkt.
+        """
+        try:
+            if (self._last_pv_production_kwh is not None
+                    and self._last_grid_export_kwh is not None
+                    and self._last_grid_import_kwh is not None):
+                self._process_energy_update()
+            else:
+                self._notify_entities()
+        except Exception as e:
+            _LOGGER.debug("Periodischer Refresh-Fehler (ignoriert): %s", e)
 
     @callback
     def _on_state_changed(self, event: Event) -> None:
@@ -2204,6 +2250,25 @@ class PVManagementFixController:
 
         self._remove_listeners.append(
             self.hass.bus.async_listen(EVENT_STATE_CHANGED, state_listener)
+        )
+
+        # Zeitbasierte Trigger (Issues #7 + #8) — unabhängig von Sensor-Events.
+        from homeassistant.helpers.event import (
+            async_track_time_change,
+            async_track_time_interval,
+        )
+        # Garantierter Tages-Reset kurz nach Mitternacht (Issue #7)
+        self._remove_listeners.append(
+            async_track_time_change(
+                self.hass, self._handle_daily_rollover,
+                hour=0, minute=0, second=10,
+            )
+        )
+        # Heartbeat alle 5 Minuten erzwingt Render der Hauptseite (Issue #8)
+        self._remove_listeners.append(
+            async_track_time_interval(
+                self.hass, self._handle_periodic_refresh, timedelta(minutes=5),
+            )
         )
 
         # --- Load Forecast (24x7 profile) — nur wenn aktiviert + Verbrauchs-Entity da ist

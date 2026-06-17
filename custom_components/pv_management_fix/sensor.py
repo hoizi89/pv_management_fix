@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
+
+from homeassistant.util import dt as dt_util
 
 from homeassistant.components.sensor import (
     SensorEntity,
@@ -1104,7 +1106,12 @@ class ConfigurationDiagnosticSensor(BaseEntity):
         )
         self._entry = entry
 
-    def _get_entity_status(self, entity_id: str | None) -> dict[str, Any]:
+    # Quellsensoren, die kontinuierlich aktualisieren sollten (Verbrauch/Netzbezug).
+    # Werden sie "stale", friert die Eigenverbrauchs-/Ersparnis-Berechnung ein (Issue #8).
+    # PV/Export werden NICHT auf Staleness geprüft — die ruhen nachts berechtigterweise.
+    STALE_THRESHOLD = timedelta(hours=6)
+
+    def _get_entity_status(self, entity_id: str | None, check_stale: bool = False) -> dict[str, Any]:
         """Get status of an entity."""
         if not entity_id:
             return {"configured": False, "entity_id": None, "state": None, "status": "not configured"}
@@ -1114,6 +1121,11 @@ class ConfigurationDiagnosticSensor(BaseEntity):
             return {"configured": True, "entity_id": entity_id, "state": None, "status": "not found"}
         elif state.state in ("unavailable", "unknown"):
             return {"configured": True, "entity_id": entity_id, "state": state.state, "status": "unavailable"}
+        elif check_stale and (dt_util.utcnow() - state.last_updated) > self.STALE_THRESHOLD:
+            # Sensor liefert seit Stunden keine neuen Werte → tot/abgehängt (Issue #8)
+            age_h = (dt_util.utcnow() - state.last_updated).total_seconds() / 3600
+            return {"configured": True, "entity_id": entity_id, "state": state.state,
+                    "status": f"stale ({age_h:.0f}h)"}
         else:
             return {"configured": True, "entity_id": entity_id, "state": state.state, "status": "OK"}
 
@@ -1121,9 +1133,16 @@ class ConfigurationDiagnosticSensor(BaseEntity):
     def native_value(self) -> str:
         """Show overall configuration status."""
         issues = 0
-        for entity_id in [self.ctrl.pv_production_entity, self.ctrl.grid_export_entity]:
+        # Alle Quellsensoren prüfen; Verbrauch/Netzbezug zusätzlich auf Staleness (Issue #8)
+        checks = [
+            (self.ctrl.pv_production_entity, False),
+            (self.ctrl.grid_export_entity, False),
+            (self.ctrl.grid_import_entity, True),
+            (self.ctrl.consumption_entity, True),
+        ]
+        for entity_id, check_stale in checks:
             if entity_id:
-                status = self._get_entity_status(entity_id)
+                status = self._get_entity_status(entity_id, check_stale=check_stale)
                 if status["status"] != "OK":
                     issues += 1
         if issues == 0:
@@ -1135,8 +1154,8 @@ class ConfigurationDiagnosticSensor(BaseEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         pv_status = self._get_entity_status(self.ctrl.pv_production_entity)
         export_status = self._get_entity_status(self.ctrl.grid_export_entity)
-        import_status = self._get_entity_status(self.ctrl.grid_import_entity)
-        consumption_status = self._get_entity_status(self.ctrl.consumption_entity)
+        import_status = self._get_entity_status(self.ctrl.grid_import_entity, check_stale=True)
+        consumption_status = self._get_entity_status(self.ctrl.consumption_entity, check_stale=True)
 
         return {
             "pv_production_entity": pv_status["entity_id"],
