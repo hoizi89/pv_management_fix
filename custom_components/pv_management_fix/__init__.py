@@ -1855,6 +1855,36 @@ class PVManagementFixController:
                 + (current_pv - self._baseline_pv_production_kwh)
                 - (current_export - self._baseline_grid_export_kwh)
             )
+        # Re-baseline on inconsistent baseline (Issue #8): if the self-consumption
+        # total calculated from the live sensors is well BELOW the running total, the
+        # baselines no longer match the source sensors — e.g. a consumption/grid-import
+        # sensor was replaced/reset/recreated, or a stale total was inherited via
+        # RestoreEntity (typical after a reinstall). The monotonic clamp (Issue #14)
+        # would otherwise freeze the total PERMANENTLY (savings/amortisation stall).
+        # -> Snap the baselines to the current readings; the total and accumulated
+        # savings are preserved and tracking resumes from here. The PV/export reset
+        # detection above only covers PV/export; this also catches consumption/
+        # grid-import resets and stale restores.
+        REBASELINE_TOLERANCE_KWH = 5.0
+        if calculated_self_consumption < self._total_self_consumption_kwh - REBASELINE_TOLERANCE_KWH:
+            _LOGGER.warning(
+                "Baseline inconsistent with source sensors (calculated=%.1f < total=%.1f kWh) "
+                "— re-baselining. Usual cause: consumption/grid-import sensor "
+                "replaced/reset or a stale restore after a reinstall. "
+                "Total & savings are kept, tracking resumes.",
+                calculated_self_consumption, self._total_self_consumption_kwh,
+            )
+            self._baseline_pv_production_kwh = current_pv
+            self._baseline_grid_export_kwh = current_export
+            self._baseline_self_consumption_kwh = self._total_self_consumption_kwh
+            self._baseline_feed_in_kwh = self._total_feed_in_kwh
+            self._baseline_consumption_kwh = self._consumption_kwh
+            self._baseline_grid_import_kwh = current_import
+            self._last_pv_production_kwh = current_pv
+            self._last_grid_export_kwh = current_export
+            self._last_grid_import_kwh = current_import
+            return
+
         # Eigenverbrauch ist ein TOTAL_INCREASING-Zaehler und darf NIE sinken
         # -> gegen bisherigen Total klemmen, effective_delta_self bleibt >= 0 (Issue #14).
         new_total_self_consumption = max(
