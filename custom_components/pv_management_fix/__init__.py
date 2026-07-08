@@ -152,8 +152,8 @@ class PVManagementFixController:
         self._tracked_wp_kwh = 0.0
         self._wp_first_seen_date: date | None = None
 
-        # Batterie-Restlaufzeit: geglättete Leistung (EMA) gegen Springen der Anzeige
-        self._battery_power_ema: float | None = None
+        # Batterie-Restlaufzeit: Leistungs-Samples für 10-Min-Mittel (stabile Anzeige)
+        self._battery_power_samples: list = []
 
         # Quota: Zählerstand bei Tagesbeginn (für robustes "Heute Verbleibend")
         self._quota_day_start_meter: float = 0.0
@@ -853,16 +853,19 @@ class PVManagementFixController:
         """Combined battery runtime estimate.
         Returns {mode, hours, power_w, quelle, ready_at} or None.
         Charging -> time to full, discharging -> time to empty, idle -> hours None.
-        Smooths the power reading (EMA) so the displayed time does not jump around."""
+        Averages the power over a 10-minute window so the displayed time is stable
+        and reflects the recent average draw, not the instantaneous flicker."""
         soc = self.battery_soc
         raw = self.battery_power_w
         if soc is None or raw is None:
             return None
-        if self._battery_power_ema is None:
-            self._battery_power_ema = raw
-        else:
-            self._battery_power_ema = 0.2 * raw + 0.8 * self._battery_power_ema
-        p = self._battery_power_ema
+        now = datetime.now()
+        self._battery_power_samples.append((now, raw))
+        self._battery_power_samples = [
+            (t, v) for (t, v) in self._battery_power_samples
+            if (now - t).total_seconds() <= 600.0
+        ]
+        p = sum(v for _, v in self._battery_power_samples) / len(self._battery_power_samples)
         quelle = "direkt" if self.battery_power_entity else "berechnet"
         if abs(p) < 50.0:  # idle -> avoid division by ~0
             return {"mode": "idle", "hours": None, "power_w": round(p), "quelle": quelle, "ready_at": None}
