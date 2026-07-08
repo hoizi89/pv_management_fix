@@ -65,6 +65,13 @@ CONF_BATTERY_CHARGE_ENTITY: Final[str] = "battery_charge_entity"
 CONF_BATTERY_DISCHARGE_ENTITY: Final[str] = "battery_discharge_entity"
 CONF_BATTERY_CAPACITY: Final[str] = "battery_capacity"
 DEFAULT_BATTERY_CAPACITY: Final[float] = 10.0  # kWh
+CONF_BATTERY_POWER_ENTITY: Final[str] = "battery_power_entity"   # instantaneous battery power (W)
+CONF_BATTERY_POWER_INVERT: Final[str] = "battery_power_invert"   # flip sign (charge/discharge)
+DEFAULT_BATTERY_POWER_INVERT: Final[bool] = False
+CONF_GRID_POWER_ENTITY: Final[str] = "grid_power_entity"         # grid power (W) for fallback derivation
+CONF_BATTERY_USABLE_PCT: Final[str] = "battery_usable_pct"       # usable share of capacity (depth of discharge)
+DEFAULT_BATTERY_USABLE_PCT: Final[float] = 90.0
+RANGE_BATTERY_USABLE_PCT: Final[dict] = {"min": 10.0, "max": 100.0, "step": 1.0}
 
 # --- PV-Leistung (live W) + PV-Ueberschuss-Sensoren ---------------------------
 CONF_PV_POWER_ENTITY: Final[str] = "pv_power_entity"     # aktuelle PV-Leistung (W)

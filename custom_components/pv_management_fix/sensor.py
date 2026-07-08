@@ -195,6 +195,7 @@ async def async_setup_entry(
             BatteryDischargeTotalSensor(ctrl, name),
             BatteryEfficiencySensor(ctrl, name),
             BatteryCyclesSensor(ctrl, name),
+            BatteryTimeRemainingSensor(ctrl, name),
         ])
 
     # === LOAD FORECAST (optional, 24x7 profile) ===
@@ -1534,6 +1535,59 @@ class QuotaStatusSensor(BaseEntity):
 # =============================================================================
 # BATTERY SENSORS
 # =============================================================================
+
+
+class BatteryTimeRemainingSensor(BaseEntity):
+    """Estimated time until the battery is full (charging) or empty (discharging)."""
+
+    def __init__(self, ctrl, name: str):
+        super().__init__(
+            ctrl,
+            name,
+            "Restlaufzeit",
+            unit="h",
+            icon="mdi:battery-clock",
+            state_class=SensorStateClass.MEASUREMENT,
+            device_type=DEVICE_BATTERY,
+        )
+        self._runtime: dict | None = None
+
+    @property
+    def native_value(self) -> float | None:
+        self._runtime = self.ctrl.battery_runtime()
+        rt = self._runtime
+        if not rt or rt.get("hours") is None:
+            return None
+        return round(rt["hours"], 1)
+
+    @property
+    def icon(self) -> str:
+        rt = self._runtime
+        if not rt:
+            return "mdi:battery-clock"
+        if rt.get("mode") == "laden":
+            return "mdi:battery-charging"
+        if rt.get("mode") == "entladen":
+            return "mdi:battery-arrow-down"
+        return "mdi:battery-clock"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        rt = self._runtime
+        if not rt:
+            return {"modus": "unbekannt"}
+        attrs = {
+            "modus": rt.get("mode"),
+            "leistung_w": rt.get("power_w"),
+            "quelle": rt.get("quelle"),
+        }
+        hours = rt.get("hours")
+        if hours is not None:
+            h = int(hours)
+            m = int(round((hours - h) * 60))
+            attrs["dauer"] = f"{h}h {m:02d}min"
+            attrs["voraussichtlich_um"] = rt.get("ready_at")
+        return attrs
 
 
 class BatterySOCSensor(BaseEntity):

@@ -24,6 +24,8 @@ from .const import (
     CONF_QUOTA_START_METER, CONF_QUOTA_MONTHLY_RATE,
     CONF_BATTERY_SOC_ENTITY, CONF_BATTERY_CHARGE_ENTITY,
     CONF_BATTERY_DISCHARGE_ENTITY, CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY,
+    CONF_BATTERY_POWER_ENTITY, CONF_BATTERY_POWER_INVERT, DEFAULT_BATTERY_POWER_INVERT,
+    CONF_GRID_POWER_ENTITY, CONF_BATTERY_USABLE_PCT, DEFAULT_BATTERY_USABLE_PCT,
     CONF_BENCHMARK_ENABLED, CONF_BENCHMARK_HOUSEHOLD_SIZE, CONF_BENCHMARK_COUNTRY,
     CONF_BENCHMARK_HEATPUMP, CONF_BENCHMARK_HEATPUMP_ENTITY, CONF_BENCHMARK_HEATPUMP_DATE,
     DEFAULT_BENCHMARK_ENABLED, DEFAULT_BENCHMARK_HOUSEHOLD_SIZE, DEFAULT_BENCHMARK_COUNTRY,
@@ -150,6 +152,9 @@ class PVManagementFixController:
         self._tracked_wp_kwh = 0.0
         self._wp_first_seen_date: date | None = None
 
+        # Batterie-Restlaufzeit: geglättete Leistung (EMA) gegen Springen der Anzeige
+        self._battery_power_ema: float | None = None
+
         # Quota: Zählerstand bei Tagesbeginn (für robustes "Heute Verbleibend")
         self._quota_day_start_meter: float = 0.0
         self._quota_day_start_date: date | None = None
@@ -231,6 +236,10 @@ class PVManagementFixController:
         self.battery_charge_entity = opts.get(CONF_BATTERY_CHARGE_ENTITY)
         self.battery_discharge_entity = opts.get(CONF_BATTERY_DISCHARGE_ENTITY)
         self.battery_capacity = opts.get(CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY)
+        self.battery_power_entity = opts.get(CONF_BATTERY_POWER_ENTITY)
+        self.battery_power_invert = opts.get(CONF_BATTERY_POWER_INVERT, DEFAULT_BATTERY_POWER_INVERT)
+        self.grid_power_entity = opts.get(CONF_GRID_POWER_ENTITY)
+        self.battery_usable_pct = opts.get(CONF_BATTERY_USABLE_PCT, DEFAULT_BATTERY_USABLE_PCT)
 
         # Amortisation Helper (Pflicht für Persistenz)
         self.amortisation_helper = opts.get(CONF_AMORTISATION_HELPER)
@@ -815,6 +824,62 @@ class PVManagementFixController:
         if charge is None or self.battery_capacity <= 0:
             return None
         return charge / self.battery_capacity
+
+    @property
+    def battery_power_w(self) -> float | None:
+        """Instantaneous battery power in W. Positive = charging, negative = discharging.
+        Primary source: a dedicated power entity. Fallback: derive from the energy
+        balance PV - house - grid (needs a grid power entity)."""
+        if self.battery_power_entity:
+            val, ok = self._get_entity_value(self.battery_power_entity)
+            if not ok:
+                return None
+            return -val if self.battery_power_invert else val
+        # Fallback derivation (grid convention: positive = feed-in/export)
+        if self.grid_power_entity:
+            grid, ok = self._get_entity_value(self.grid_power_entity)
+            if not ok:
+                return None
+            derived = self.pv_power - self.effective_house_power - grid
+            return -derived if self.battery_power_invert else derived
+        return None
+
+    @property
+    def battery_usable_capacity_kwh(self) -> float:
+        """Usable capacity (kWh), accounting for depth of discharge."""
+        return self.battery_capacity * (self.battery_usable_pct / 100.0)
+
+    def battery_runtime(self) -> dict | None:
+        """Combined battery runtime estimate.
+        Returns {mode, hours, power_w, quelle, ready_at} or None.
+        Charging -> time to full, discharging -> time to empty, idle -> hours None.
+        Smooths the power reading (EMA) so the displayed time does not jump around."""
+        soc = self.battery_soc
+        raw = self.battery_power_w
+        if soc is None or raw is None:
+            return None
+        if self._battery_power_ema is None:
+            self._battery_power_ema = raw
+        else:
+            self._battery_power_ema = 0.2 * raw + 0.8 * self._battery_power_ema
+        p = self._battery_power_ema
+        quelle = "direkt" if self.battery_power_entity else "berechnet"
+        if abs(p) < 50.0:  # idle -> avoid division by ~0
+            return {"mode": "idle", "hours": None, "power_w": round(p), "quelle": quelle, "ready_at": None}
+        usable = self.battery_usable_capacity_kwh
+        if usable <= 0:
+            return None
+        if p > 0:  # charging -> time to full
+            remaining_kwh = usable * max(0.0, 100.0 - soc) / 100.0
+            hours = remaining_kwh / (p / 1000.0)
+            mode = "laden"
+        else:      # discharging -> time to empty
+            remaining_kwh = usable * max(0.0, soc) / 100.0
+            hours = remaining_kwh / (abs(p) / 1000.0)
+            mode = "entladen"
+        hours = max(0.0, hours)
+        ready_at = (dt_util.now() + timedelta(hours=hours)).strftime("%H:%M")
+        return {"mode": mode, "hours": hours, "power_w": round(p), "quelle": quelle, "ready_at": ready_at}
 
     # =========================================================================
     # ROI

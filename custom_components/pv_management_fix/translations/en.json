@@ -160,12 +160,19 @@
           "battery_soc_entity": "State of Charge Sensor (SOC)",
           "battery_charge_entity": "Total Charge Sensor (kWh)",
           "battery_discharge_entity": "Total Discharge Sensor (kWh)",
-          "battery_capacity": "Battery Capacity (kWh)"
+          "battery_power_entity": "Battery Power Sensor (W) — for time-remaining",
+          "battery_power_invert": "Flip sign (if charge/discharge are swapped)",
+          "grid_power_entity": "Grid Power Sensor (W) — optional, for time-remaining without a battery sensor",
+          "battery_capacity": "Battery Capacity (kWh)",
+          "battery_usable_pct": "Usable share (%) — depth of discharge"
         },
         "data_description": {
           "battery_soc_entity": "Sensor for battery state of charge in percent (e.g. sensor.battery_state_of_charge)",
           "battery_charge_entity": "Ever-increasing energy counter (kWh) for battery charge. For power sensors (W): Create a Riemann integral helper first.",
           "battery_discharge_entity": "Ever-increasing energy counter (kWh) for battery discharge. For power sensors (W): Create a Riemann integral helper first.",
+          "battery_power_entity": "Instantaneous battery power in W (e.g. sensor.battery_power). Positive = charging. Basis for the new time-remaining sensor.",
+          "grid_power_entity": "Only needed if you have no battery power sensor: time-remaining is then derived from PV − house − grid.",
+          "battery_usable_pct": "How much % of capacity is actually usable (depth of discharge, e.g. 90%). Prevents an overestimated 'time to empty'.",
           "battery_capacity": "Usable capacity of battery storage in kWh"
         }
       },
@@ -300,6 +307,7 @@
       "kontingent_heute_verbleibend": { "name": "Quota Today Remaining" },
       "kontingent_status": { "name": "Quota Status" },
       "ladestand": { "name": "Battery SOC" },
+      "restlaufzeit": { "name": "Time Remaining" },
       "ladung_gesamt": { "name": "Battery Total Charge" },
       "entladung_gesamt": { "name": "Battery Total Discharge" },
       "effizienz": { "name": "Battery Efficiency" },

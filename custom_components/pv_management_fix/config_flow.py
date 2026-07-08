@@ -21,6 +21,8 @@ from .const import (
     CONF_QUOTA_START_METER, CONF_QUOTA_MONTHLY_RATE,
     CONF_BATTERY_SOC_ENTITY, CONF_BATTERY_CHARGE_ENTITY,
     CONF_BATTERY_DISCHARGE_ENTITY, CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY,
+    CONF_BATTERY_POWER_ENTITY, CONF_BATTERY_POWER_INVERT, DEFAULT_BATTERY_POWER_INVERT,
+    CONF_GRID_POWER_ENTITY, CONF_BATTERY_USABLE_PCT, DEFAULT_BATTERY_USABLE_PCT, RANGE_BATTERY_USABLE_PCT,
     CONF_PV_POWER_ENTITY, CONF_HOUSE_POWER_ENTITY,
     CONF_PV_PEAK_POWER, DEFAULT_PV_PEAK_POWER,
     CONF_SHIFTABLE_LOAD_ENTITY,
@@ -467,7 +469,8 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
         """Batterie-Speicher konfigurieren."""
         if user_input is not None:
             return await self._save_and_return_to_menu(user_input, optional_entity_keys=(
-                CONF_BATTERY_SOC_ENTITY, CONF_BATTERY_CHARGE_ENTITY, CONF_BATTERY_DISCHARGE_ENTITY))
+                CONF_BATTERY_SOC_ENTITY, CONF_BATTERY_CHARGE_ENTITY, CONF_BATTERY_DISCHARGE_ENTITY,
+                CONF_BATTERY_POWER_ENTITY, CONF_GRID_POWER_ENTITY))
 
         return self.async_show_form(
             step_id="battery",
@@ -478,6 +481,12 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
                 self._optional_entity(CONF_BATTERY_DISCHARGE_ENTITY):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="energy")),
+                self._optional_entity(CONF_BATTERY_POWER_ENTITY):
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
+                vol.Optional(CONF_BATTERY_POWER_INVERT, default=self._get_val(CONF_BATTERY_POWER_INVERT, DEFAULT_BATTERY_POWER_INVERT)):
+                    selector.BooleanSelector(),
+                self._optional_entity(CONF_GRID_POWER_ENTITY):
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power")),
                 vol.Required(CONF_BATTERY_CAPACITY, default=self._get_val(CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY)):
                     selector.NumberSelector(
                         selector.NumberSelectorConfig(
@@ -486,6 +495,16 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                             step=RANGE_BATTERY_CAPACITY["step"],
                             unit_of_measurement="kWh",
                             mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                vol.Required(CONF_BATTERY_USABLE_PCT, default=self._get_val(CONF_BATTERY_USABLE_PCT, DEFAULT_BATTERY_USABLE_PCT)):
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=RANGE_BATTERY_USABLE_PCT["min"],
+                            max=RANGE_BATTERY_USABLE_PCT["max"],
+                            step=RANGE_BATTERY_USABLE_PCT["step"],
+                            unit_of_measurement="%",
+                            mode=selector.NumberSelectorMode.SLIDER,
                         )
                     ),
             })

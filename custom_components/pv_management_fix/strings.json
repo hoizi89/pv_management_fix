@@ -159,12 +159,19 @@
           "battery_soc_entity": "Ladestand Sensor (SOC)",
           "battery_charge_entity": "Ladung Gesamt Sensor (kWh)",
           "battery_discharge_entity": "Entladung Gesamt Sensor (kWh)",
-          "battery_capacity": "Batteriekapazitaet (kWh)"
+          "battery_power_entity": "Batterie-Leistung Sensor (W) - fuer Restlaufzeit",
+          "battery_power_invert": "Vorzeichen drehen (falls laden/entladen vertauscht)",
+          "grid_power_entity": "Netz-Leistung Sensor (W) - optional, fuer Restlaufzeit ohne Batterie-Sensor",
+          "battery_capacity": "Batteriekapazitaet (kWh)",
+          "battery_usable_pct": "Nutzbarer Anteil (%) - Entladetiefe"
         },
         "data_description": {
           "battery_soc_entity": "Sensor fuer den Batterie-Ladestand in Prozent (z.B. sensor.battery_state_of_charge)",
           "battery_charge_entity": "Stetig steigender Energiezaehler (kWh) fuer Batterie-Ladung. Bei Leistungssensor (W): Erst Riemann-Integral-Helfer anlegen.",
           "battery_discharge_entity": "Stetig steigender Energiezaehler (kWh) fuer Batterie-Entladung. Bei Leistungssensor (W): Erst Riemann-Integral-Helfer anlegen.",
+          "battery_power_entity": "Momentane Batterie-Leistung in W (z.B. sensor.battery_power). Positiv = laden. Basis fuer die neue Restlaufzeit-Anzeige.",
+          "grid_power_entity": "Nur noetig, wenn kein Batterie-Leistungssensor da ist: Restlaufzeit wird dann aus PV - Haus - Netz berechnet.",
+          "battery_usable_pct": "Wie viel % der Kapazitaet real nutzbar sind (Entladetiefe, z.B. 90 %). Verhindert eine ueberschaetzte 'Zeit bis leer'.",
           "battery_capacity": "Nutzbare Kapazitaet des Batteriespeichers in kWh"
         }
       },
@@ -281,6 +288,7 @@
       "kontingent_heute_verbleibend": { "name": "Quota Today Remaining" },
       "kontingent_status": { "name": "Quota Status" },
       "ladestand": { "name": "Battery SOC" },
+      "restlaufzeit": { "name": "Time Remaining" },
       "ladung_gesamt": { "name": "Battery Total Charge" },
       "entladung_gesamt": { "name": "Battery Total Discharge" },
       "effizienz": { "name": "Battery Efficiency" },
