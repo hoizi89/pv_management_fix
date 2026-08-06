@@ -303,12 +303,27 @@ class PVManagementFixController:
         return self.gross_price * 100
 
     def _convert_energy_to_kwh(self, entity_id: str, value: float) -> float:
-        """Konvertiert Wh → kWh falls der Sensor in Wh meldet."""
+        """Convert the entity's native energy value to kWh (Wh and MWh supported)."""
         state_obj = self.hass.states.get(entity_id)
         if state_obj:
-            uom = state_obj.attributes.get("unit_of_measurement", "")
+            uom = (state_obj.attributes.get("unit_of_measurement") or "").strip()
             if uom in ("Wh", "wh"):
                 return value / 1000
+            # Case-sensitive on purpose: "mWh" (milli) must not match
+            if uom == "MWh":
+                return value * 1000
+        return value
+
+    def _convert_power_to_w(self, entity_id: str, value: float) -> float:
+        """Convert the entity's native power value to W (kW and MW supported)."""
+        state_obj = self.hass.states.get(entity_id)
+        if state_obj:
+            uom = (state_obj.attributes.get("unit_of_measurement") or "").strip()
+            if uom in ("kW", "kw", "KW"):
+                return value * 1000
+            # Case-sensitive on purpose: "mW" (milli) must not match
+            if uom == "MW":
+                return value * 1_000_000
         return value
 
     def _convert_price_to_eur(self, price: float, unit: str, auto_detect: bool = False) -> float:
@@ -834,12 +849,14 @@ class PVManagementFixController:
             val, ok = self._get_entity_value(self.battery_power_entity)
             if not ok:
                 return None
+            val = self._convert_power_to_w(self.battery_power_entity, val)
             return -val if self.battery_power_invert else val
         # Fallback derivation (grid convention: positive = feed-in/export)
         if self.grid_power_entity:
             grid, ok = self._get_entity_value(self.grid_power_entity)
             if not ok:
                 return None
+            grid = self._convert_power_to_w(self.grid_power_entity, grid)
             derived = self.pv_power - self.effective_house_power - grid
             return -derived if self.battery_power_invert else derived
         return None
@@ -2144,22 +2161,18 @@ class PVManagementFixController:
         elif entity_id == self.consumption_entity:
             self._consumption_kwh = self._convert_energy_to_kwh(entity_id, value)
         elif entity_id == self.pv_power_entity:
-            self._pv_power = value
+            self._pv_power = self._convert_power_to_w(entity_id, value)
             self._notify_entities()
         elif entity_id == self.house_power_entity:
-            self._house_power = value
+            self._house_power = self._convert_power_to_w(entity_id, value)
             self._notify_entities()
         elif entity_id == self.shiftable_load_entity:
-            self._shiftable_load_power = value
+            self._shiftable_load_power = self._convert_power_to_w(entity_id, value)
             self._notify_entities()
         elif entity_id in (self.battery_soc_entity, self.battery_charge_entity, self.battery_discharge_entity):
             self._notify_entities()
         elif entity_id == self.benchmark_heatpump_entity:
-            # Unit-Konvertierung: Wh → kWh falls nötig
-            state_obj = self.hass.states.get(entity_id)
-            uom = state_obj.attributes.get("unit_of_measurement", "") if state_obj else ""
-            if uom in ("Wh", "wh"):
-                value = value / 1000
+            value = self._convert_energy_to_kwh(entity_id, value)
             if self._wp_first_seen_date is None:
                 self._wp_first_seen_date = date.today()
             if self._last_wp_kwh is not None and value >= self._last_wp_kwh:
@@ -2188,6 +2201,7 @@ class PVManagementFixController:
 
         # PV-String Power Peak-Tracking
         elif entity_id in self._string_power_entity_ids:
+            value = self._convert_power_to_w(entity_id, value)
             current_peak = self._string_peak_w.get(entity_id, 0.0)
             if value > current_peak:
                 self._string_peak_w[entity_id] = value
@@ -2239,7 +2253,7 @@ class PVManagementFixController:
         if sensor_available["_grid_import_kwh"] and self._last_grid_import_kwh is None:
             self._last_grid_import_kwh = self._grid_import_kwh
 
-        # Initiale Werte fuer Leistungs-Sensoren (W, kein Wh→kWh)
+        # Initial values for power sensors (kW/MW → W conversion, Issue #10)
         for entity_id, attr in [
             (self.pv_power_entity, "_pv_power"),
             (self.house_power_entity, "_house_power"),
@@ -2249,7 +2263,7 @@ class PVManagementFixController:
                 state = self.hass.states.get(entity_id)
                 if state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                     try:
-                        setattr(self, attr, float(state.state))
+                        setattr(self, attr, self._convert_power_to_w(entity_id, float(state.state)))
                     except (ValueError, TypeError):
                         pass
 
@@ -2278,10 +2292,9 @@ class PVManagementFixController:
             state = self.hass.states.get(self.benchmark_heatpump_entity)
             if state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                 try:
-                    val = float(state.state)
-                    uom = state.attributes.get("unit_of_measurement", "")
-                    if uom in ("Wh", "wh"):
-                        val = val / 1000
+                    val = self._convert_energy_to_kwh(
+                        self.benchmark_heatpump_entity, float(state.state)
+                    )
                     self._last_wp_kwh = val
                     if self._wp_first_seen_date is None:
                         self._wp_first_seen_date = date.today()
@@ -2293,14 +2306,18 @@ class PVManagementFixController:
             state = self.hass.states.get(entity_id)
             if state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                 try:
-                    self._string_last_kwh[entity_id] = float(state.state)
+                    # Same conversion as in _on_state_changed — otherwise a Wh/MWh
+                    # string sensor books a wrong first delta after startup
+                    self._string_last_kwh[entity_id] = self._convert_energy_to_kwh(
+                        entity_id, float(state.state)
+                    )
                 except (ValueError, TypeError):
                     pass
             if power_entity:
                 p_state = self.hass.states.get(power_entity)
                 if p_state and p_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                     try:
-                        val = float(p_state.state)
+                        val = self._convert_power_to_w(power_entity, float(p_state.state))
                         current = self._string_peak_w.get(power_entity, 0.0)
                         if val > current:
                             self._string_peak_w[power_entity] = val
