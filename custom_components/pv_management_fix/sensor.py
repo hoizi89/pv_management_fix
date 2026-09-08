@@ -402,15 +402,17 @@ class AmortisationPercentSensor(BaseEntity):
         )
 
     @property
-    def native_value(self) -> float:
-        return round(self.ctrl.amortisation_percent, 2)
+    def native_value(self) -> float | None:
+        percent = self.ctrl.amortisation_percent
+        return None if percent is None else round(percent, 2)
 
     @property
     def extra_state_attributes(self):
+        remaining = self.ctrl.remaining_cost
         return {
             "total_savings": f"{self.ctrl.total_savings:.2f}€",
             "installation_cost": f"{self.ctrl.installation_cost:.2f}€",
-            "remaining": f"{self.ctrl.remaining_cost:.2f}€",
+            "remaining": None if remaining is None else f"{remaining:.2f}€",
             "is_amortised": self.ctrl.is_amortised,
         }
 
@@ -587,8 +589,9 @@ class RemainingCostSensor(BaseEntity):
         )
 
     @property
-    def native_value(self) -> float:
-        return round(self.ctrl.remaining_cost, 2)
+    def native_value(self) -> float | None:
+        remaining = self.ctrl.remaining_cost
+        return None if remaining is None else round(remaining, 2)
 
     @property
     def icon(self) -> str:
@@ -614,21 +617,26 @@ class StatusSensor(BaseEntity):
 
     @property
     def icon(self) -> str:
+        percent = self.ctrl.amortisation_percent
         if self.ctrl.is_amortised:
             return "mdi:party-popper"
-        elif self.ctrl.amortisation_percent >= 75:
+        elif percent is None:
+            return "mdi:help-circle-outline"
+        elif percent >= 75:
             return "mdi:trending-up"
-        elif self.ctrl.amortisation_percent >= 50:
+        elif percent >= 50:
             return "mdi:solar-power-variant"
         else:
             return "mdi:solar-panel"
 
     @property
     def extra_state_attributes(self):
+        percent = self.ctrl.amortisation_percent
+        remaining = self.ctrl.remaining_cost
         attrs = {
-            "percent": f"{self.ctrl.amortisation_percent:.1f}%",
+            "percent": None if percent is None else f"{percent:.1f}%",
             "total_savings": f"{self.ctrl.total_savings:.2f}€",
-            "remaining": f"{self.ctrl.remaining_cost:.2f}€",
+            "remaining": None if remaining is None else f"{remaining:.2f}€",
         }
         if self.ctrl.is_amortised:
             profit = self.ctrl.total_savings - self.ctrl.installation_cost
