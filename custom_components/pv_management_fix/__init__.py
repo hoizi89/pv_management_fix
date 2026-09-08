@@ -208,7 +208,11 @@ class PVManagementFixController:
         self.feed_in_tariff_unit = opts.get(CONF_FEED_IN_TARIFF_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT)
 
         # Kosten und Datum
-        self.installation_cost = opts.get(CONF_INSTALLATION_COST, DEFAULT_INSTALLATION_COST)
+        raw_cost = opts.get(CONF_INSTALLATION_COST, DEFAULT_INSTALLATION_COST)
+        try:
+            self.installation_cost = float(raw_cost)
+        except (TypeError, ValueError):
+            self.installation_cost = 0.0
         self.installation_date = opts.get(CONF_INSTALLATION_DATE)
         self.savings_offset = opts.get(CONF_SAVINGS_OFFSET, DEFAULT_SAVINGS_OFFSET)
 
@@ -741,21 +745,28 @@ class PVManagementFixController:
         return base + self.savings_offset - self.total_yearly_costs
 
     @property
-    def amortisation_percent(self) -> float:
-        """Amortisation in Prozent."""
-        if self.installation_cost <= 0:
-            return 100.0
+    def has_installation_cost(self) -> bool:
+        """True wenn Anschaffungskosten hinterlegt sind."""
+        return self.installation_cost > 0
+
+    @property
+    def amortisation_percent(self) -> float | None:
+        """Amortisation in Prozent, None ohne hinterlegte Anschaffungskosten."""
+        if not self.has_installation_cost:
+            return None
         return min(100.0, (self.total_savings / self.installation_cost) * 100)
 
     @property
-    def remaining_cost(self) -> float:
-        """Restbetrag bis zur Amortisation."""
+    def remaining_cost(self) -> float | None:
+        """Restbetrag bis zur Amortisation, None ohne Anschaffungskosten."""
+        if not self.has_installation_cost:
+            return None
         return max(0.0, self.installation_cost - self.total_savings)
 
     @property
     def is_amortised(self) -> bool:
-        """True wenn vollständig amortisiert."""
-        return self.total_savings >= self.installation_cost
+        """True wenn vollständig amortisiert. Ohne Kosten ist nichts amortisiert."""
+        return self.has_installation_cost and self.total_savings >= self.installation_cost
 
     @property
     def _current_self_consumption_kwh(self) -> float:
@@ -966,6 +977,8 @@ class PVManagementFixController:
     @property
     def estimated_remaining_days(self) -> int | None:
         """Geschätzte verbleibende Tage bis Amortisation."""
+        if not self.has_installation_cost:
+            return None
         if self.is_amortised:
             return 0
         daily_avg = self.average_daily_savings
@@ -987,6 +1000,8 @@ class PVManagementFixController:
     @property
     def status_text(self) -> str:
         """Status-Text für Anzeige."""
+        if not self.has_installation_cost:
+            return "Anschaffungskosten nicht hinterlegt"
         if self.is_amortised:
             profit = self.total_savings - self.installation_cost
             return f"Amortisiert! +{profit:.2f}€ Gewinn"
@@ -1373,10 +1388,10 @@ class PVManagementFixController:
 
     def _check_milestones(self) -> None:
         """Prüft und feuert Meilenstein-Events (25%, 50%, 75%, 100%)."""
-        if self.installation_cost <= 0:
+        percent = self.amortisation_percent
+        if percent is None:
             return
 
-        percent = self.amortisation_percent
         milestones = [25, 50, 75, 100]
 
         for milestone in milestones:
@@ -1467,14 +1482,16 @@ class PVManagementFixController:
         monthly_savings = self._monthly_grid_import_cost  # Ungefähr
         monthly_kwh = self._monthly_grid_import_kwh
 
-        message = f"PV-Bericht {month_name}: {monthly_kwh:.0f} kWh Netzbezug, {self.amortisation_percent:.1f}% amortisiert"
+        percent = self.amortisation_percent
+        amortised = "amortisiert" if percent is None else f"{percent:.1f}% amortisiert"
+        message = f"PV-Bericht {month_name}: {monthly_kwh:.0f} kWh Netzbezug, {amortised}"
 
         self.hass.bus.async_fire("pv_management_event", {
             "type": "monthly_summary",
             "month": month_name,
             "grid_import_kwh": round(monthly_kwh, 1),
             "grid_import_cost": round(monthly_savings, 2),
-            "amortisation_percent": round(self.amortisation_percent, 1),
+            "amortisation_percent": None if percent is None else round(percent, 1),
             "total_savings": round(self.total_savings, 2),
             "message": message,
         })
