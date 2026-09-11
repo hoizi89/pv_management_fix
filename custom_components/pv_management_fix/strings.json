@@ -141,15 +141,17 @@
           "amortisation_helper": "Amortisation Helper (input_number)",
           "restore_from_helper": "Werte vom Helper wiederherstellen?",
           "savings_offset": "Bereits amortisierter Betrag (EUR)",
-          "energy_offset_self_consumption": "Selbst verbrauchte PV-Energie vor Tracking (kWh)",
-          "energy_offset_export": "Ins Netz eingespeiste Energie vor Tracking (kWh)"
+          "export_meter_at_start": "Einspeisezaehler bei Inbetriebnahme (kWh)",
+          "energy_offset_self_consumption": "Korrektur Eigenverbrauch (kWh)",
+          "energy_offset_export": "Korrektur Einspeisung (kWh)"
         },
         "data_description": {
           "amortisation_helper": "input_number Helper, in dem die Gesamtersparnis gespeichert wird. So gehen Daten bei Updates/Neuinstallation nicht verloren.",
           "restore_from_helper": "Beim Start die Ersparnis vom Helper-Wert uebernehmen.",
           "savings_offset": "Wieviel EUR hat sich die PV-Anlage bereits 'zurueckverdient'? Z.B. aus vorherigem Tracking. Ersparnis wird zum aktuellen Strompreis berechnet.",
-          "energy_offset_self_consumption": "PV-Strom den du selbst verbraucht hast, bevor diese Integration gestartet wurde. Z.B. aus Energy Dashboard (Eigenverbrauch = PV Produktion minus Einspeisung).",
-          "energy_offset_export": "PV-Strom den du ins Netz eingespeist hast, bevor diese Integration gestartet wurde. Z.B. am Einspeisezaehler oder Energy Dashboard."
+          "export_meter_at_start": "Stand des Einspeisezaehlers, als die PV-Anlage in Betrieb ging. Nur fuer den ersten Start der Integration; bei 0 zaehlt der ganze Zaehlerstand als Einspeisung dieser Anlage.",
+          "energy_offset_self_consumption": "Wird auf den gezaehlten Eigenverbrauch aufgeschlagen, negativ erlaubt. Z. B. Energie vor dem Tracking, oder +744, wenn der Einspeisezaehler bei Inbetriebnahme schon bei 744 kWh stand.",
+          "energy_offset_export": "Wird auf die gezaehlte Einspeisung aufgeschlagen, negativ erlaubt. Z. B. Einspeisung vor dem Tracking, oder -744, wenn der Einspeisezaehler bei Inbetriebnahme schon bei 744 kWh stand."
         }
       },
       "battery": {

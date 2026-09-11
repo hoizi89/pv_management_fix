@@ -16,7 +16,7 @@ from .const import (
     CONF_ELECTRICITY_PRICE, CONF_ELECTRICITY_PRICE_ENTITY, CONF_ELECTRICITY_PRICE_UNIT,
     CONF_FEED_IN_TARIFF, CONF_FEED_IN_TARIFF_ENTITY, CONF_FEED_IN_TARIFF_UNIT,
     CONF_INSTALLATION_COST, CONF_INSTALLATION_DATE, CONF_SAVINGS_OFFSET,
-    CONF_ENERGY_OFFSET_SELF, CONF_ENERGY_OFFSET_EXPORT,
+    CONF_ENERGY_OFFSET_SELF, CONF_ENERGY_OFFSET_EXPORT, CONF_EXPORT_METER_AT_START,
     CONF_FIXED_PRICE, CONF_MARKUP_FACTOR, CONF_GRID_FEE, CONF_TAXES_LEVIES, CONF_VAT_PERCENT,
     CONF_AMORTISATION_HELPER, CONF_RESTORE_FROM_HELPER,
     CONF_YEARLY_COST, DEFAULT_YEARLY_COST,
@@ -38,7 +38,7 @@ from .const import (
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
     DEFAULT_FIXED_PRICE, DEFAULT_MARKUP_FACTOR, DEFAULT_GRID_FEE, DEFAULT_TAXES_LEVIES, DEFAULT_VAT_PERCENT,
-    DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT,
+    DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT, DEFAULT_EXPORT_METER_AT_START,
     DEFAULT_QUOTA_ENABLED, DEFAULT_QUOTA_YEARLY_KWH,
     DEFAULT_QUOTA_START_METER, DEFAULT_QUOTA_MONTHLY_RATE,
     PRICE_UNIT_CENT,
@@ -216,9 +216,12 @@ class PVManagementFixController:
         self.installation_date = opts.get(CONF_INSTALLATION_DATE)
         self.savings_offset = opts.get(CONF_SAVINGS_OFFSET, DEFAULT_SAVINGS_OFFSET)
 
-        # Energie-Offsets (für historische Daten vor Tracking)
-        self.energy_offset_self = opts.get(CONF_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_SELF)
-        self.energy_offset_export = opts.get(CONF_ENERGY_OFFSET_EXPORT, DEFAULT_ENERGY_OFFSET_EXPORT)
+        # Energie-Korrekturen: werden auf die gezählten Summen aufgeschlagen,
+        # negativ erlaubt (z. B. Einspeisezähler stand bei Inbetriebnahme nicht auf 0).
+        self.energy_offset_self = float(opts.get(CONF_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_SELF) or 0.0)
+        self.energy_offset_export = float(opts.get(CONF_ENERGY_OFFSET_EXPORT, DEFAULT_ENERGY_OFFSET_EXPORT) or 0.0)
+        # Einspeisezähler bei Inbetriebnahme: nur für den allerersten Start.
+        self.export_meter_at_start = float(opts.get(CONF_EXPORT_METER_AT_START, DEFAULT_EXPORT_METER_AT_START) or 0.0)
 
         # Fixed price (ct/kWh → €/kWh) and cost breakdown
         self.fixed_price = opts.get(CONF_FIXED_PRICE, DEFAULT_FIXED_PRICE) / 100.0
@@ -496,13 +499,13 @@ class PVManagementFixController:
 
     @property
     def self_consumption_kwh(self) -> float:
-        """Gesamter Eigenverbrauch (inkrementell berechnet)."""
-        return self._total_self_consumption_kwh
+        """Gesamter Eigenverbrauch: gezählt plus Korrektur aus den Optionen."""
+        return max(0.0, self._total_self_consumption_kwh + self.energy_offset_self)
 
     @property
     def feed_in_kwh(self) -> float:
-        """Gesamte Einspeisung (inkrementell berechnet)."""
-        return self._total_feed_in_kwh
+        """Gesamte Einspeisung: gezählt plus Korrektur aus den Optionen."""
+        return max(0.0, self._total_feed_in_kwh + self.energy_offset_export)
 
     @property
     def tracked_grid_import_kwh(self) -> float:
@@ -720,13 +723,13 @@ class PVManagementFixController:
 
     @property
     def savings_self_consumption(self) -> float:
-        """Ersparnis durch Eigenverbrauch."""
-        return self._accumulated_savings_self
+        """Ersparnis durch Eigenverbrauch, die Korrektur zum aktuellen Brutto-Preis."""
+        return self._accumulated_savings_self + self.energy_offset_self * self.gross_price
 
     @property
     def earnings_feed_in(self) -> float:
-        """Einnahmen durch Einspeisung."""
-        return self._accumulated_earnings_feed
+        """Einnahmen durch Einspeisung, die Korrektur zum aktuellen Tarif."""
+        return self._accumulated_earnings_feed + self.energy_offset_export * self.current_feed_in_tariff
 
     @property
     def total_yearly_costs(self) -> float:
@@ -782,20 +785,20 @@ class PVManagementFixController:
     @property
     def self_consumption_ratio(self) -> float:
         """Eigenverbrauchsquote (%) - Anteil der PV-Produktion der selbst verbraucht wird."""
-        total_pv = self._total_self_consumption_kwh + self._total_feed_in_kwh
+        total_pv = self.self_consumption_kwh + self.feed_in_kwh
         if total_pv <= 0:
             return 0.0
-        return min(100.0, (self._total_self_consumption_kwh / total_pv) * 100)
+        return min(100.0, (self.self_consumption_kwh / total_pv) * 100)
 
     @property
     def autarky_rate(self) -> float | None:
         """Autarkiegrad (%) - Anteil des Verbrauchs der durch PV gedeckt wird."""
-        if self._total_self_consumption_kwh <= 0:
+        if self.self_consumption_kwh <= 0:
             return None
-        total_consumption = self._total_self_consumption_kwh + self._tracked_grid_import_kwh
+        total_consumption = self.self_consumption_kwh + self._tracked_grid_import_kwh
         if total_consumption <= 0:
             return None
-        return min(100.0, (self._total_self_consumption_kwh / total_consumption) * 100)
+        return min(100.0, (self.self_consumption_kwh / total_consumption) * 100)
 
     @property
     def co2_saved_kg(self) -> float:
@@ -1371,7 +1374,7 @@ class PVManagementFixController:
                     # Setze den Offset so, dass total_savings dem Helper entspricht
                     # total_savings = savings_offset + accumulated_savings_self + accumulated_earnings_feed
                     # Also: savings_offset = helper_value - (accumulated_savings_self + accumulated_earnings_feed)
-                    current_accumulated = self._accumulated_savings_self + self._accumulated_earnings_feed
+                    current_accumulated = self.savings_self_consumption + self.earnings_feed_in
                     self.savings_offset = max(0, helper_value - current_accumulated)
 
                     self._restored = True
@@ -1711,8 +1714,10 @@ class PVManagementFixController:
             _LOGGER.info("Keine historischen PV-Daten verfügbar, starte bei 0")
             return
 
-        self_consumption = max(0, pv_total - export_total)
-        feed_in = export_total
+        # A meter that did not start at zero with the PV carries kWh from before
+        # it; those are not this system's export, and not missing self-consumption.
+        feed_in = max(0.0, export_total - self.export_meter_at_start)
+        self_consumption = max(0, pv_total - feed_in)
 
         # Bei Fixpreis: Berechne mit dem Brutto-Preis (inkl. Netz/Steuern)
         savings_self = self_consumption * self.gross_price

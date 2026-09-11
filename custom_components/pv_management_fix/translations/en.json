@@ -142,15 +142,17 @@
           "amortisation_helper": "Amortization Helper (input_number)",
           "restore_from_helper": "Restore values from helper?",
           "savings_offset": "Already amortized amount (EUR)",
-          "energy_offset_self_consumption": "Self-consumed PV energy before tracking (kWh)",
-          "energy_offset_export": "Grid export before tracking (kWh)"
+          "export_meter_at_start": "Export meter at commissioning (kWh)",
+          "energy_offset_self_consumption": "Self-consumption correction (kWh)",
+          "energy_offset_export": "Export correction (kWh)"
         },
         "data_description": {
           "amortisation_helper": "input_number helper to store total savings. Survives updates/reinstalls.",
           "restore_from_helper": "On start, restore savings from the helper value.",
           "savings_offset": "How much has the PV system already 'earned back'? E.g. from previous tracking. Savings calculated at current price.",
-          "energy_offset_self_consumption": "PV energy you consumed yourself before this integration started. Find in Energy Dashboard (self consumption = PV production minus export).",
-          "energy_offset_export": "PV energy exported to the grid before this integration started. Find on your export meter or Energy Dashboard."
+          "export_meter_at_start": "The export meter's reading when the PV system went into service. Used only on the integration's first start; at 0 the whole meter reading counts as this system's export.",
+          "energy_offset_self_consumption": "Added to the counted self-consumption; may be negative. E.g. energy from before tracking, or +744 if the export meter already read 744 kWh at commissioning.",
+          "energy_offset_export": "Added to the counted export; may be negative. E.g. export from before tracking, or -744 if the export meter already read 744 kWh at commissioning."
         }
       },
       "battery": {

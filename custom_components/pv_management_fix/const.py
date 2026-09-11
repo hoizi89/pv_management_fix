@@ -36,6 +36,9 @@ CONF_INSTALLATION_COST: Final[str] = "installation_cost"
 CONF_SAVINGS_OFFSET: Final[str] = "savings_offset"
 CONF_ENERGY_OFFSET_SELF: Final[str] = "energy_offset_self_consumption"
 CONF_ENERGY_OFFSET_EXPORT: Final[str] = "energy_offset_export"
+# The export meter's reading when the PV went into service; a meter that did not
+# start at zero would otherwise count its old kWh as this system's export.
+CONF_EXPORT_METER_AT_START: Final[str] = "export_meter_at_start"
 CONF_INSTALLATION_DATE: Final[str] = "installation_date"
 
 # --- Fixed price (main feature of this integration) --------------------------
@@ -102,8 +105,9 @@ DEFAULT_FEED_IN_TARIFF: Final[float] = 0.08  # €/kWh
 DEFAULT_FEED_IN_TARIFF_UNIT: Final[str] = PRICE_UNIT_EUR
 DEFAULT_INSTALLATION_COST: Final[float] = 10000.0  # €
 DEFAULT_SAVINGS_OFFSET: Final[float] = 0.0  # € already amortised
-DEFAULT_ENERGY_OFFSET_SELF: Final[float] = 0.0  # kWh self-consumption before tracking
-DEFAULT_ENERGY_OFFSET_EXPORT: Final[float] = 0.0  # kWh export before tracking
+DEFAULT_ENERGY_OFFSET_SELF: Final[float] = 0.0  # kWh correction on self-consumption (may be negative)
+DEFAULT_ENERGY_OFFSET_EXPORT: Final[float] = 0.0  # kWh correction on export (may be negative)
+DEFAULT_EXPORT_METER_AT_START: Final[float] = 0.0
 
 # Fixed price default (Grünwelt classic net energy price)
 DEFAULT_FIXED_PRICE: Final[float] = 10.92  # ct/kWh net
@@ -144,7 +148,8 @@ RANGE_TARIFF_CENT: Final[dict] = {"min": 0.0, "max": 50.0, "step": 0.01}
 # Hohes Maximum, damit auch schwächere Landeswährungen (HUF, JPY, IDR …) passen (Issue #9)
 RANGE_COST: Final[dict] = {"min": 0.0, "max": 100000000.0, "step": 1.0}
 RANGE_OFFSET: Final[dict] = {"min": 0.0, "max": 100000.0, "step": 0.01}
-RANGE_ENERGY_OFFSET: Final[dict] = {"min": 0.0, "max": 500000.0, "step": 0.01}
+RANGE_ENERGY_OFFSET: Final[dict] = {"min": -500000.0, "max": 500000.0, "step": 0.01}
+RANGE_METER_AT_START: Final[dict] = {"min": 0.0, "max": 10000000.0, "step": 0.01}
 RANGE_MARKUP_FACTOR: Final[dict] = {"min": 1.0, "max": 5.0, "step": 0.1}
 RANGE_GRID_FEE: Final[dict] = {"min": 0.0, "max": 30.0, "step": 0.01}
 RANGE_TAXES_LEVIES: Final[dict] = {"min": 0.0, "max": 30.0, "step": 0.01}

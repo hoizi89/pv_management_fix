@@ -113,8 +113,9 @@
           "amortisation_helper": "Pomocnik Amortyzacji (input_number)",
           "restore_from_helper": "Przywróć wartości z pomocnika?",
           "savings_offset": "Kwota już zamortyzowana (PLN)",
-          "energy_offset_self_consumption": "Autokonsumpcja przed użyciem (kWh)",
-          "energy_offset_export": "Eksport przed użyciem (kWh)"
+          "export_meter_at_start": "Licznik eksportu przy uruchomieniu (kWh)",
+          "energy_offset_self_consumption": "Korekta autokonsumpcji (kWh)",
+          "energy_offset_export": "Korekta eksportu (kWh)"
         }
       },
       "battery": {

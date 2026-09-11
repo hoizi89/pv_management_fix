@@ -15,7 +15,7 @@ from .const import (
     CONF_INSTALLATION_COST, CONF_INSTALLATION_DATE,
     CONF_SAVINGS_OFFSET, CONF_FIXED_PRICE, CONF_MARKUP_FACTOR,
     CONF_GRID_FEE, CONF_TAXES_LEVIES, CONF_VAT_PERCENT,
-    CONF_ENERGY_OFFSET_SELF, CONF_ENERGY_OFFSET_EXPORT,
+    CONF_ENERGY_OFFSET_SELF, CONF_ENERGY_OFFSET_EXPORT, CONF_EXPORT_METER_AT_START,
     CONF_AMORTISATION_HELPER, CONF_RESTORE_FROM_HELPER,
     CONF_QUOTA_ENABLED, CONF_QUOTA_YEARLY_KWH, CONF_QUOTA_START_DATE,
     CONF_QUOTA_START_METER, CONF_QUOTA_MONTHLY_RATE,
@@ -40,7 +40,8 @@ from .const import (
     DEFAULT_INSTALLATION_COST, DEFAULT_SAVINGS_OFFSET, DEFAULT_FIXED_PRICE, DEFAULT_MARKUP_FACTOR,
     DEFAULT_GRID_FEE, DEFAULT_TAXES_LEVIES, DEFAULT_VAT_PERCENT,
     DEFAULT_ELECTRICITY_PRICE_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT,
-    DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT,
+    DEFAULT_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_EXPORT, DEFAULT_EXPORT_METER_AT_START,
+    RANGE_METER_AT_START,
     DEFAULT_QUOTA_ENABLED, DEFAULT_QUOTA_YEARLY_KWH,
     DEFAULT_QUOTA_START_METER, DEFAULT_QUOTA_MONTHLY_RATE,
     RANGE_COST, RANGE_OFFSET, RANGE_ENERGY_OFFSET, RANGE_MARKUP_FACTOR,
@@ -448,7 +449,14 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
                         unit_of_measurement="€", mode=selector.NumberSelectorMode.BOX
                     )),
 
-                # Energie-Offsets (fuer historische Daten vor Tracking)
+                # Einspeisezaehler bei Inbetriebnahme (nur fuer den ersten Start)
+                vol.Optional(CONF_EXPORT_METER_AT_START, default=self._get_val(CONF_EXPORT_METER_AT_START, DEFAULT_EXPORT_METER_AT_START)):
+                    selector.NumberSelector(selector.NumberSelectorConfig(
+                        min=RANGE_METER_AT_START["min"], max=RANGE_METER_AT_START["max"], step=RANGE_METER_AT_START["step"],
+                        unit_of_measurement="kWh", mode=selector.NumberSelectorMode.BOX
+                    )),
+
+                # Energie-Korrekturen (auf die gezaehlten Summen, negativ erlaubt)
                 vol.Optional(CONF_ENERGY_OFFSET_SELF, default=self._get_val(CONF_ENERGY_OFFSET_SELF, DEFAULT_ENERGY_OFFSET_SELF)):
                     selector.NumberSelector(selector.NumberSelectorConfig(
                         min=RANGE_ENERGY_OFFSET["min"], max=RANGE_ENERGY_OFFSET["max"], step=RANGE_ENERGY_OFFSET["step"],
