@@ -184,6 +184,9 @@ class PVManagementFixController:
         # Listener
         self._remove_listeners = []
         self._entity_listeners = []
+        # Gesetzt in async_stop(): verhindert, dass ein entladener Controller
+        # (Reload/Unload) noch Entities anstößt oder in den Helper schreibt.
+        self._stopping = False
 
     def _load_options(self):
         """Lädt Optionen aus Entry (Options überschreiben Data)."""
@@ -1334,6 +1337,8 @@ class PVManagementFixController:
 
     def _notify_entities(self) -> None:
         """Informiert alle Entities über Zustandsänderungen."""
+        if self._stopping:
+            return
         for cb in list(self._entity_listeners):
             try:
                 cb()
@@ -1351,6 +1356,10 @@ class PVManagementFixController:
     def _sync_to_helper(self) -> None:
         """Synchronisiert die Gesamtersparnis zum Helper."""
         if not self.amortisation_helper:
+            return
+        # Race-Schutz: Ein gestoppter (alter) Controller darf nach Reload den
+        # Helper nicht mehr mit seinem Stand überschreiben.
+        if self._stopping:
             return
         # Race-Schutz: Nicht syncen bevor Restore abgeschlossen — sonst
         # überschreibt total_savings=0 den persistierten Helper-Wert.
@@ -1702,7 +1711,10 @@ class PVManagementFixController:
             self._notify_entities()
 
         from homeassistant.helpers.event import async_call_later
-        async_call_later(self.hass, 5.0, delayed_restore_notify)
+        # Handle merken, damit async_stop() den Timer bei Unload abbricht
+        self._remove_listeners.append(
+            async_call_later(self.hass, 5.0, delayed_restore_notify)
+        )
 
     def _initialize_from_sensors(self) -> None:
         """Initialisiert die Werte mit den aktuellen Sensor-Totals.
@@ -2411,6 +2423,8 @@ class PVManagementFixController:
 
         @callback
         def delayed_init_check(_now: datetime) -> None:
+            if self._stopping:
+                return
             if not self._restored and self._total_self_consumption_kwh == 0:
                 _LOGGER.info("Keine restored Daten, initialisiere von Sensoren")
                 self._initialize_from_sensors()
@@ -2420,7 +2434,10 @@ class PVManagementFixController:
                 self._notify_entities()
 
         from homeassistant.helpers.event import async_call_later
-        async_call_later(self.hass, 60.0, delayed_init_check)
+        # Handle merken, damit async_stop() den Timer bei Unload abbricht
+        self._remove_listeners.append(
+            async_call_later(self.hass, 60.0, delayed_init_check)
+        )
 
         @callback
         def state_listener(event: Event):
@@ -2475,9 +2492,17 @@ class PVManagementFixController:
         self._notify_entities()
 
     async def async_stop(self) -> None:
-        """Stoppt das Tracking."""
+        """Stoppt das Tracking.
+
+        Setzt zuerst _stopping, damit keine Entity-Updates und kein Helper-Sync
+        mehr passieren, und bricht dann alle Listener und Timer ab.
+        """
+        self._stopping = True
         for remove in self._remove_listeners:
-            remove()
+            try:
+                remove()
+            except Exception as e:
+                _LOGGER.debug("Listener-Abmeldung fehlgeschlagen (ignoriert): %s", e)
         self._remove_listeners.clear()
         self._entity_listeners.clear()
         if self.forecaster is not None:
@@ -2549,7 +2574,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not hass.services.has_service(DOMAIN, "reset_grid_import"):
         hass.services.async_register(DOMAIN, "reset_grid_import", handle_reset_grid_import)
 
-    entry.add_update_listener(_async_update_listener)
+    # async_on_unload: Listener wird beim Unload abgemeldet, sonst sammeln sich
+    # bei jedem Reload weitere Update-Listener an (Befund #4)
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
 
@@ -2558,11 +2585,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Entlädt die Integration."""
     try:
+        # Controller ZUERST stoppen (Listener, Timer, Helper-Sync), damit der
+        # alte Controller während/nach dem Entladen der Plattformen nichts mehr
+        # schreibt — sonst Race mit dem neuen Controller beim Reload (Befund #3).
+        entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+        ctrl = entry_data.get(DATA_CTRL) if entry_data else None
+        if ctrl:
+            await ctrl.async_stop()
         unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-        if unload_ok and DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
-            ctrl = hass.data[DOMAIN][entry.entry_id].get(DATA_CTRL)
-            if ctrl:
-                await ctrl.async_stop()
+        if unload_ok and DOMAIN in hass.data:
             hass.data[DOMAIN].pop(entry.entry_id, None)
         return unload_ok
     except Exception as e:
