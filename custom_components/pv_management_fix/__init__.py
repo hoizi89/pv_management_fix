@@ -47,6 +47,7 @@ from .const import (
     DEFAULT_PV_PEAK_POWER, SURPLUS_RATIOS,
     CONF_SHIFTABLE_LOAD_ENTITY,
 )
+from .calc import helper_savings_offset
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +70,11 @@ class PVManagementFixController:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
         self.hass = hass
         self.entry = entry
+
+        # Vom Helper abgeleiteter Ersparnis-Offset (None = kein Helper-Restore).
+        # Getrennt vom Options-Offset, damit _load_options() ihn nicht
+        # überschreibt (Befund #1). Muss vor _load_options() existieren.
+        self._helper_offset: float | None = None
 
         # Konfigurierbare Werte (aus Options, fallback zu data)
         self._load_options()
@@ -214,7 +220,26 @@ class PVManagementFixController:
         except (TypeError, ValueError):
             self.installation_cost = 0.0
         self.installation_date = opts.get(CONF_INSTALLATION_DATE)
-        self.savings_offset = opts.get(CONF_SAVINGS_OFFSET, DEFAULT_SAVINGS_OFFSET)
+        # Ersparnis-Offset aus den Optionen (Grundwert).
+        # Regel bei aktivem Helper-Restore: Der Helper ist die Wahrheit, der
+        # daraus abgeleitete Offset liegt in self._helper_offset. Ändert der
+        # Nutzer danach den Options-Offset, wird nur die DIFFERENZ zum bisherigen
+        # Options-Wert auf den Helper-Offset aufgeschlagen — die Korrektur wirkt
+        # also, ohne den wiederhergestellten Stand zu verwerfen. Reines Speichern
+        # einer anderen Menüseite (gleicher Wert) ändert nichts.
+        old_offset = getattr(self, "savings_offset", None)
+        try:
+            new_offset = float(opts.get(CONF_SAVINGS_OFFSET, DEFAULT_SAVINGS_OFFSET) or 0.0)
+        except (TypeError, ValueError):
+            new_offset = 0.0
+        if (old_offset is not None and self._helper_offset is not None
+                and new_offset != old_offset):
+            self._helper_offset += new_offset - old_offset
+            _LOGGER.info(
+                "Ersparnis-Offset geändert (%.2f → %.2f €) — auf Helper-Offset angewendet",
+                old_offset, new_offset,
+            )
+        self.savings_offset = new_offset
 
         # Energie-Korrekturen: werden auf die gezählten Summen aufgeschlagen,
         # negativ erlaubt (z. B. Einspeisezähler stand bei Inbetriebnahme nicht auf 0).
@@ -742,10 +767,17 @@ class PVManagementFixController:
         return self.yearly_cost * days / 365.0
 
     @property
+    def effective_savings_offset(self) -> float:
+        """Wirksamer Ersparnis-Offset: Helper-Offset (falls restored), sonst Options-Offset."""
+        if self._helper_offset is not None:
+            return self._helper_offset
+        return self.savings_offset
+
+    @property
     def total_savings(self) -> float:
         """Gesamtersparnis inkl. manuellem Offset, abzüglich jährlicher Kosten."""
         base = self.savings_self_consumption + self.earnings_feed_in
-        return base + self.savings_offset - self.total_yearly_costs
+        return base + self.effective_savings_offset - self.total_yearly_costs
 
     @property
     def has_installation_cost(self) -> bool:
@@ -1371,11 +1403,20 @@ class PVManagementFixController:
                         self.amortisation_helper, helper_value
                     )
 
-                    # Setze den Offset so, dass total_savings dem Helper entspricht
-                    # total_savings = savings_offset + accumulated_savings_self + accumulated_earnings_feed
-                    # Also: savings_offset = helper_value - (accumulated_savings_self + accumulated_earnings_feed)
-                    current_accumulated = self.savings_self_consumption + self.earnings_feed_in
-                    self.savings_offset = max(0, helper_value - current_accumulated)
+                    # Setze den Offset so, dass total_savings exakt dem Helper entspricht.
+                    # total_savings = savings_self + earnings_feed + offset - yearly_costs
+                    # → offset = helper - (savings_self + earnings_feed - yearly_costs)
+                    # Jahreskosten MÜSSEN mit rein, sonst schrumpft der Helper bei jedem
+                    # Neustart um total_yearly_costs (Befund #2). Kein max(0, …): der
+                    # Helper ist die Wahrheit, ein negativer Offset ist legitim.
+                    # Getrennt vom Options-Offset gespeichert (Befund #1), damit ein
+                    # Options-Update ihn nicht überschreibt.
+                    self._helper_offset = helper_savings_offset(
+                        helper_value,
+                        self.savings_self_consumption,
+                        self.earnings_feed_in,
+                        self.total_yearly_costs,
+                    )
 
                     self._restored = True
                     self._notify_entities()
