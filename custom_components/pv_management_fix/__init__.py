@@ -853,6 +853,17 @@ class PVManagementFixController:
             self.current_feed_in_tariff,
         )
 
+    def _price_source_ready(self, entity_id: str | None, last_known: float | None) -> bool:
+        """True, wenn der Preis NICHT nur der statische Fallback wäre.
+
+        Ohne Preissensor gilt der statische Preis. Mit Preissensor muss er
+        verfügbar sein oder ein zuletzt bekannter Wert vorliegen.
+        """
+        if not entity_id:
+            return True
+        _, available = self._get_entity_value(entity_id)
+        return available or last_known is not None
+
     def _fix_offset_valuation(self) -> None:
         """Schreibt den €-Wert der Energie-Korrekturen fest (Issue #19).
 
@@ -866,9 +877,9 @@ class PVManagementFixController:
         """
         if (self._offset_self_applied_kwh != self.energy_offset_self
                 or self._offset_self_eur is None):
-            price = self.gross_price  # aktualisiert _price_sensor_available
-            if (self._price_sensor_available
-                    or self._last_known_electricity_price is not None):
+            price = self.gross_price
+            if self._price_source_ready(self.electricity_price_entity,
+                                        self._last_known_electricity_price):
                 self._offset_self_applied_kwh, self._offset_self_eur = revalue_energy_offset(
                     self.energy_offset_self,
                     self._offset_self_applied_kwh,
@@ -881,9 +892,9 @@ class PVManagementFixController:
                 )
         if (self._offset_export_applied_kwh != self.energy_offset_export
                 or self._offset_export_eur is None):
-            tariff = self.current_feed_in_tariff  # aktualisiert _tariff_sensor_available
-            if (self._tariff_sensor_available
-                    or self._last_known_feed_in_tariff is not None):
+            tariff = self.current_feed_in_tariff
+            if self._price_source_ready(self.feed_in_tariff_entity,
+                                        self._last_known_feed_in_tariff):
                 self._offset_export_applied_kwh, self._offset_export_eur = revalue_energy_offset(
                     self.energy_offset_export,
                     self._offset_export_applied_kwh,
