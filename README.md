@@ -464,6 +464,18 @@ For **spot tariffs** (aWATTar, smartENERGY) with battery management:
 
 ## Changelog
 
+### v2.6.0
+- **Fix (#19):** Energie-Korrekturen werden beim Setzen einmalig zum dann gültigen Preis bewertet — die Gesamtersparnis schwankt nicht mehr mit dem Börsenpreis (EPEX)
+- **Fix:** Helper-Restore wird durch Options-Speichern nicht mehr überschrieben und berücksichtigt die Jahreskosten (Helper schrumpfte bei jedem Neustart)
+- **Fix:** Tagessensoren liefern `last_reset` (Mitternachts-Reset nicht mehr als negatives Delta in der Statistik)
+- **Fix:** Baselines und letzte Zählerstände werden persistiert — Energie während einer HA-Downtime geht nicht mehr verloren
+- **Fix:** Monatswerte überleben Neustarts, der Monatsbericht am 1. meldet den Vormonat
+- **Fix:** Preis-Einheit wird aus der Sensor-Einheit gelesen (ct-Werte ≤ 1 und negative Spotpreise)
+- **Fix:** Reload/Unload ohne Race, Update-Listener nur einmal registriert
+- Eigenverbrauch, Einspeisung und CO2 jetzt `state_class: total` (Korrektur-Rücksprung kein Zählerreset mehr)
+- Performance: State-Listener nur auf konfigurierte Sensoren, Leistungs-Updates gedrosselt (30 s), große Attribute nicht mehr im Recorder
+- Kleinere Fixes: Entfernen von Sensoren aus der Ersteinrichtung, Reload bei Export-/Import-/Leistungs-Sensoren und PV-Strings, Helper-Sync auf min/max begrenzt, HA-Zeitzone überall
+
 ### v1.14.0
 - **NEW: Annual PV Production** — Extrapolated yearly PV production from benchmark tracking
 - **NEW: Specific Yield (kWh/kWp)** — System-wide and per-string, using installed capacity or measured peaks as fallback
