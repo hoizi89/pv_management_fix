@@ -506,6 +506,10 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
                 "monthly_buckets": attrs.get("monthly_buckets", {}),
                 "monthly_bucket_month": attrs.get("monthly_bucket_month"),
             }
+            # Zusätzliche Persistenz-Daten (get_state_for_storage) unverändert
+            # durchreichen — restore_state() liest sie per Key.
+            for key, value in attrs.items():
+                restore_data.setdefault(key, value)
 
             _LOGGER.info(
                 "TotalSavingsSensor: Restore data: self=%.2f kWh, feed=%.2f kWh, wp=%.2f kWh",
@@ -571,7 +575,10 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
         Anders als extra_state_attributes wird extra_restore_state_data von
         HA auch dann gespeichert, wenn die Entity gerade "unavailable" ist.
         """
-        return _PersistedTrackingData(dict(self.extra_state_attributes))
+        data = dict(self.extra_state_attributes)
+        # Interne Werte, die nicht als Attribut erscheinen sollen
+        data.update(self.ctrl.get_state_for_storage())
+        return _PersistedTrackingData(data)
 
 
 class RemainingCostSensor(BaseEntity):

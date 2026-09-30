@@ -47,7 +47,10 @@ from .const import (
     DEFAULT_PV_PEAK_POWER, SURPLUS_RATIOS,
     CONF_SHIFTABLE_LOAD_ENTITY,
 )
-from .calc import helper_savings_offset, start_of_day
+from .calc import (
+    helper_savings_offset, start_of_day,
+    offset_value_eur, revalue_energy_offset,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -106,6 +109,14 @@ class PVManagementFixController:
         self._total_feed_in_kwh = 0.0
         self._accumulated_savings_self = 0.0
         self._accumulated_earnings_feed = 0.0
+
+        # Festgeschriebener €-Wert der Energie-Korrekturen (Befund #6 / Issue #19).
+        # applied_kwh = kWh-Offset, für den eur zuletzt festgeschrieben wurde.
+        # None = noch nicht bewertet (Neuinstallation / Update von < 2.6.0).
+        self._offset_self_applied_kwh: float | None = None
+        self._offset_self_eur: float | None = None
+        self._offset_export_applied_kwh: float | None = None
+        self._offset_export_eur: float | None = None
 
         # Baselines für absolute Berechnung von Self-Consumption und Feed-In.
         # Vermeidet Drift-Bug bei asynchronen PV/Export-Sensor-Updates: statt
@@ -761,13 +772,75 @@ class PVManagementFixController:
 
     @property
     def savings_self_consumption(self) -> float:
-        """Ersparnis durch Eigenverbrauch, die Korrektur zum aktuellen Brutto-Preis."""
-        return self._accumulated_savings_self + self.energy_offset_self * self.gross_price
+        """Ersparnis durch Eigenverbrauch inkl. Korrektur.
+
+        Die Korrektur (kWh) wird NICHT mehr laufend mit dem aktuellen Preis
+        multipliziert — bei dynamischem Preis (EPEX) schwankte die Gesamtersparnis
+        sonst mit dem Börsenpreis um Tausende Euro (Issue #19). Ihr €-Wert wird
+        beim Setzen/Ändern festgeschrieben, siehe _fix_offset_valuation().
+        """
+        if self.energy_offset_self == 0 and not self._offset_self_applied_kwh:
+            return self._accumulated_savings_self
+        return self._accumulated_savings_self + offset_value_eur(
+            self.energy_offset_self,
+            self._offset_self_applied_kwh,
+            self._offset_self_eur,
+            self.gross_price,
+        )
 
     @property
     def earnings_feed_in(self) -> float:
-        """Einnahmen durch Einspeisung, die Korrektur zum aktuellen Tarif."""
-        return self._accumulated_earnings_feed + self.energy_offset_export * self.current_feed_in_tariff
+        """Einnahmen durch Einspeisung inkl. Korrektur (€-Wert festgeschrieben, Issue #19)."""
+        if self.energy_offset_export == 0 and not self._offset_export_applied_kwh:
+            return self._accumulated_earnings_feed
+        return self._accumulated_earnings_feed + offset_value_eur(
+            self.energy_offset_export,
+            self._offset_export_applied_kwh,
+            self._offset_export_eur,
+            self.current_feed_in_tariff,
+        )
+
+    def _fix_offset_valuation(self) -> None:
+        """Schreibt den €-Wert der Energie-Korrekturen fest (Issue #19).
+
+        - Erstbewertung (Neuinstallation / Update von < 2.6.0): einmalig mit dem
+          jetzt gültigen Preis, danach fix.
+        - kWh-Offset in den Optionen geändert: nur das Delta wird mit dem jetzt
+          gültigen Preis bewertet, der bisherige Betrag bleibt.
+        Ist ein Preissensor konfiguriert, aber (noch) nicht verfügbar und kein
+        letzter Preis bekannt, wird die Bewertung verschoben — sonst würde mit
+        dem statischen Fallback-Preis festgeschrieben.
+        """
+        if (self._offset_self_applied_kwh != self.energy_offset_self
+                or self._offset_self_eur is None):
+            price = self.gross_price  # aktualisiert _price_sensor_available
+            if (self._price_sensor_available
+                    or self._last_known_electricity_price is not None):
+                self._offset_self_applied_kwh, self._offset_self_eur = revalue_energy_offset(
+                    self.energy_offset_self,
+                    self._offset_self_applied_kwh,
+                    self._offset_self_eur,
+                    price,
+                )
+                _LOGGER.info(
+                    "Korrektur Eigenverbrauch festgeschrieben: %.2f kWh = %.2f € (Preis %.4f €/kWh)",
+                    self._offset_self_applied_kwh, self._offset_self_eur, price,
+                )
+        if (self._offset_export_applied_kwh != self.energy_offset_export
+                or self._offset_export_eur is None):
+            tariff = self.current_feed_in_tariff  # aktualisiert _tariff_sensor_available
+            if (self._tariff_sensor_available
+                    or self._last_known_feed_in_tariff is not None):
+                self._offset_export_applied_kwh, self._offset_export_eur = revalue_energy_offset(
+                    self.energy_offset_export,
+                    self._offset_export_applied_kwh,
+                    self._offset_export_eur,
+                    tariff,
+                )
+                _LOGGER.info(
+                    "Korrektur Einspeisung festgeschrieben: %.2f kWh = %.2f € (Tarif %.4f €/kWh)",
+                    self._offset_export_applied_kwh, self._offset_export_eur, tariff,
+                )
 
     @property
     def total_yearly_costs(self) -> float:
@@ -1598,6 +1671,14 @@ class PVManagementFixController:
         self._tracked_grid_import_kwh = safe_float(data.get("tracked_grid_import_kwh"))
         self._total_grid_import_cost = safe_float(data.get("total_grid_import_cost"))
 
+        # Festgeschriebener €-Wert der Energie-Korrekturen (ab v2.6.0, Issue #19).
+        # Fehlt er (Update von älterer Version), wird er in async_start() einmalig
+        # mit dem dann gültigen Preis initialisiert.
+        self._offset_self_applied_kwh = safe_float_or_none(data.get("energy_offset_self_applied_kwh"))
+        self._offset_self_eur = safe_float_or_none(data.get("energy_offset_self_eur"))
+        self._offset_export_applied_kwh = safe_float_or_none(data.get("energy_offset_export_applied_kwh"))
+        self._offset_export_eur = safe_float_or_none(data.get("energy_offset_export_eur"))
+
         today = dt_util.now().date()
 
         # Daily tracking restore
@@ -1808,50 +1889,17 @@ class PVManagementFixController:
         self._notify_entities()
 
     def get_state_for_storage(self) -> dict[str, Any]:
-        """Gibt den zu speichernden Zustand zurück."""
-        today = date.today()
+        """Zusätzliche Persistenz-Daten, die NICHT als State-Attribute erscheinen.
+
+        Werden von TotalSavingsSensor.extra_restore_state_data zusammen mit den
+        Attributen gespeichert und beim Restore an restore_state() übergeben.
+        """
         return {
-            "total_self_consumption_kwh": self._total_self_consumption_kwh,
-            "total_feed_in_kwh": self._total_feed_in_kwh,
-            "accumulated_savings_self": self._accumulated_savings_self,
-            "accumulated_earnings_feed": self._accumulated_earnings_feed,
-            # Letzte Sensor-Werte für korrekte Delta-Berechnung nach Restart (Issue #8)
-            "last_pv_production_kwh": self._last_pv_production_kwh,
-            "last_grid_export_kwh": self._last_grid_export_kwh,
-            "last_grid_import_kwh": self._last_grid_import_kwh,
-            # Baselines für drift-freie Self-Consumption-Berechnung (Option B)
-            "baseline_pv_production_kwh": self._baseline_pv_production_kwh,
-            "baseline_grid_export_kwh": self._baseline_grid_export_kwh,
-            "baseline_self_consumption_kwh": self._baseline_self_consumption_kwh,
-            "baseline_feed_in_kwh": self._baseline_feed_in_kwh,
-            "baseline_consumption_kwh": self._baseline_consumption_kwh,
-            "baseline_grid_import_kwh": self._baseline_grid_import_kwh,
-            "first_seen_date": self._first_seen_date.isoformat() if self._first_seen_date else None,
-            "tracked_grid_import_kwh": self._tracked_grid_import_kwh,
-            "total_grid_import_cost": self._total_grid_import_cost,
-            "daily_grid_import_kwh": self._daily_grid_import_kwh,
-            "daily_grid_import_cost": self._daily_grid_import_cost,
-            "daily_feed_in_earnings": self._daily_feed_in_earnings,
-            "daily_feed_in_kwh": self._daily_feed_in_kwh,
-            "quota_day_start_meter": self._quota_day_start_meter,
-            "daily_reset_date": today.isoformat(),
-            "monthly_grid_import_kwh": self._monthly_grid_import_kwh,
-            "monthly_grid_import_cost": self._monthly_grid_import_cost,
-            "monthly_reset_month": today.month,
-            "monthly_reset_year": today.year,
-            "tracked_wp_kwh": self._tracked_wp_kwh,
-            "wp_first_seen_date": self._wp_first_seen_date.isoformat() if self._wp_first_seen_date else None,
-            "string_tracked_kwh": self._string_tracked_kwh,
-            "string_first_seen_date": self._string_first_seen_date.isoformat() if self._string_first_seen_date else None,
-            "string_peak_w": self._string_peak_w,
-            "string_daily_peak_w": self._string_daily_peak_w,
-            "string_daily_peak_date": self._string_daily_peak_date.isoformat() if self._string_daily_peak_date else None,
-            "benchmark_start_date": self._benchmark_start_date.isoformat() if self._benchmark_start_date else None,
-            "benchmark_start_self_consumption": self._benchmark_start_self_consumption,
-            "benchmark_start_grid_import": self._benchmark_start_grid_import,
-            "benchmark_start_feed_in": self._benchmark_start_feed_in,
-            "monthly_buckets": {str(k): v for k, v in self._monthly_buckets.items()},
-            "monthly_bucket_month": self._monthly_bucket_month,
+            # Festgeschriebener €-Wert der Energie-Korrekturen (Issue #19)
+            "energy_offset_self_applied_kwh": self._offset_self_applied_kwh,
+            "energy_offset_self_eur": self._offset_self_eur,
+            "energy_offset_export_applied_kwh": self._offset_export_applied_kwh,
+            "energy_offset_export_eur": self._offset_export_eur,
         }
 
     def get_string_production_kwh(self, entity_id: str) -> float:
@@ -1948,6 +1996,10 @@ class PVManagementFixController:
         current_pv = self._pv_production_kwh
         current_export = self._grid_export_kwh
         current_import = self._grid_import_kwh
+
+        # Nachholen, falls der Preissensor beim Start noch nicht verfügbar war
+        if self._offset_self_eur is None or self._offset_export_eur is None:
+            self._fix_offset_valuation()
 
         # Init-Guard: Wenn _last_* None → setze und return.
         if (self._last_pv_production_kwh is None
@@ -2425,6 +2477,10 @@ class PVManagementFixController:
                 self._benchmark_start_feed_in,
             )
 
+        # €-Wert der Energie-Korrekturen festschreiben (Erstbewertung nach Update)
+        # — VOR dem Helper-Restore, damit der Helper-Offset darauf aufsetzt.
+        self._fix_offset_valuation()
+
         # Versuche zuerst vom Helper zu restoren (falls konfiguriert)
         if self.restore_from_helper and self.amortisation_helper:
             restored = await self._restore_from_helper()
@@ -2649,6 +2705,9 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                     await hass.config_entries.async_reload(entry.entry_id)
                 else:
                     ctrl._load_options()
+                    # Geänderte Energie-Korrektur: nur das Delta zum jetzt gültigen
+                    # Preis bewerten (Issue #19)
+                    ctrl._fix_offset_valuation()
                     ctrl._notify_entities()
                     _LOGGER.info("PV Management Fixpreis Optionen aktualisiert")
     except Exception as e:
