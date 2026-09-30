@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.util import dt as dt_util
@@ -659,7 +659,12 @@ class SelfConsumptionSensor(BaseEntity):
             "Eigenverbrauch",
             unit="kWh",
             icon="mdi:home-lightning-bolt",
-            state_class=SensorStateClass.TOTAL_INCREASING,
+            # TOTAL statt TOTAL_INCREASING: Die Summe enthält die (auch negative)
+            # Energie-Korrektur aus den Optionen. Wird sie verringert, würde HA
+            # einen Rücksprung bei TOTAL_INCREASING als Zählerreset werten und den
+            # kompletten Stand erneut in die Statistik buchen. TOTAL verbucht ihn
+            # korrekt als negatives Delta.
+            state_class=SensorStateClass.TOTAL,
             device_class=SensorDeviceClass.ENERGY,
         )
 
@@ -678,7 +683,8 @@ class FeedInSensor(BaseEntity):
             "Einspeisung",
             unit="kWh",
             icon="mdi:transmission-tower-export",
-            state_class=SensorStateClass.TOTAL_INCREASING,
+            # TOTAL statt TOTAL_INCREASING — siehe Eigenverbrauch (Korrektur-Offset)
+            state_class=SensorStateClass.TOTAL,
             device_class=SensorDeviceClass.ENERGY,
         )
 
@@ -972,7 +978,8 @@ class CO2SavedSensor(BaseEntity):
             "CO2 Ersparnis",
             unit="kg",
             icon="mdi:molecule-co2",
-            state_class=SensorStateClass.TOTAL_INCREASING,
+            # TOTAL statt TOTAL_INCREASING — basiert auf dem Eigenverbrauch inkl. Korrektur
+            state_class=SensorStateClass.TOTAL,
         )
 
     @property
@@ -1216,6 +1223,11 @@ class DailyFeedInSensor(BaseEntity):
         return round(self.ctrl.daily_feed_in_earnings, 2)
 
     @property
+    def last_reset(self) -> datetime | None:
+        """Beginn des Tracking-Tages — Tageswert startet um Mitternacht bei 0."""
+        return self.ctrl.daily_last_reset
+
+    @property
     def extra_state_attributes(self) -> dict:
         return {
             "amount_kwh": round(self.ctrl.daily_feed_in_kwh, 2),
@@ -1241,6 +1253,11 @@ class DailyGridImportSensor(BaseEntity):
     @property
     def native_value(self) -> float:
         return round(self.ctrl.daily_grid_import_cost, 2)
+
+    @property
+    def last_reset(self) -> datetime | None:
+        """Beginn des Tracking-Tages — Tageswert startet um Mitternacht bei 0."""
+        return self.ctrl.daily_last_reset
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -1269,6 +1286,11 @@ class DailyNetElectricityCostSensor(BaseEntity):
     @property
     def native_value(self) -> float:
         return round(self.ctrl.daily_net_electricity_cost, 2)
+
+    @property
+    def last_reset(self) -> datetime | None:
+        """Beginn des Tracking-Tages — Tageswert startet um Mitternacht bei 0."""
+        return self.ctrl.daily_last_reset
 
     @property
     def extra_state_attributes(self) -> dict:

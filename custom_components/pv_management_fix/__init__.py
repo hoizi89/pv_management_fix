@@ -47,7 +47,7 @@ from .const import (
     DEFAULT_PV_PEAK_POWER, SURPLUS_RATIOS,
     CONF_SHIFTABLE_LOAD_ENTITY,
 )
-from .calc import helper_savings_offset
+from .calc import helper_savings_offset, start_of_day
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -602,6 +602,16 @@ class PVManagementFixController:
     def daily_net_electricity_cost(self) -> float:
         """Tägliche Netto-Stromkosten (Einkauf minus Verkauf) in €."""
         return self._daily_grid_import_cost - self._daily_feed_in_earnings
+
+    @property
+    def daily_last_reset(self) -> datetime:
+        """last_reset der Tagessensoren: lokale Mitternacht des Tracking-Tages.
+
+        state_class TOTAL ohne last_reset würde den Mitternachts-Reset als
+        negatives Delta in die Langzeitstatistik buchen (Befund #5).
+        """
+        now = dt_util.now()
+        return start_of_day(self._daily_tracking_date or now.date(), now.tzinfo)
 
     @property
     def monthly_grid_import_kwh(self) -> float:
