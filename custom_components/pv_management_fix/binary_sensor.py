@@ -87,7 +87,8 @@ class PVSurplusBinarySensor(BinarySensorEntity, RestoreEntity):
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
         self._removed = False
-        self.ctrl.register_entity_listener(self._on_ctrl_update)
+        # fast=True: Überschuss muss auch bei gedrosselten Leistungs-Updates zeitnah schalten
+        self.ctrl.register_entity_listener(self._on_ctrl_update, fast=True)
 
         # Letzten state aus Recorder wiederherstellen (Restart-Robustheit).
         # Sonst wuerde der Binary-Sensor nach HA-Restart bei OFF starten,

@@ -239,6 +239,8 @@ class BaseEntity(SensorEntity):
 
     _attr_should_poll = False
     _attr_has_entity_name = True
+    # True: auch gedrosselte Leistungs-Updates sofort erhalten (PV-Überschuss)
+    _fast_update = False
 
     def __init__(
         self,
@@ -272,7 +274,7 @@ class BaseEntity(SensorEntity):
 
     async def async_added_to_hass(self):
         self._removed = False
-        self.ctrl.register_entity_listener(self._on_ctrl_update)
+        self.ctrl.register_entity_listener(self._on_ctrl_update, fast=self._fast_update)
 
     async def async_will_remove_from_hass(self):
         self._removed = True
@@ -430,6 +432,27 @@ class _PersistedTrackingData(ExtraStoredData):
 
 class TotalSavingsSensor(BaseEntity, RestoreEntity):
     """Total savings in Euro - persists data."""
+
+    # Interne Tracking-Attribute (u. a. monthly_buckets, String-Dicts) ändern
+    # sich bei jedem Update und blähen sonst die Recorder-Datenbank auf
+    # (Befund #9). Für den Restore werden sie über extra_restore_state_data
+    # gesichert, der Recorder braucht sie nicht.
+    _unrecorded_attributes = frozenset({
+        "tracked_self_consumption_kwh", "tracked_feed_in_kwh",
+        "accumulated_savings_self", "accumulated_earnings_feed",
+        "first_seen_date", "tracked_grid_import_kwh", "total_grid_import_cost",
+        "tracked_wp_kwh", "wp_first_seen_date",
+        "string_tracked_kwh", "string_first_seen_date", "string_peak_w",
+        "string_daily_peak_w", "string_daily_peak_date",
+        "daily_grid_import_kwh", "daily_grid_import_cost",
+        "daily_feed_in_earnings", "daily_feed_in_kwh", "daily_reset_date",
+        "quota_day_start_meter",
+        "monthly_grid_import_kwh", "monthly_grid_import_cost",
+        "monthly_reset_month", "monthly_reset_year",
+        "benchmark_start_date", "benchmark_start_self_consumption",
+        "benchmark_start_grid_import", "benchmark_start_feed_in",
+        "monthly_buckets", "monthly_bucket_month", "calculation_method",
+    })
 
     def __init__(self, ctrl, name: str):
         super().__init__(
@@ -2313,6 +2336,8 @@ class LoadForecast24hSensor(_ForecastBaseSensor):
 
 class PVSurplusValueSensor(BaseEntity):
     """Aktueller PV-Ueberschuss in W (pv_power - house_power, clamp >= 0)."""
+
+    _fast_update = True
 
     def __init__(self, ctrl, name: str):
         super().__init__(

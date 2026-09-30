@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, date, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback, Event
-from homeassistant.const import EVENT_STATE_CHANGED, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -57,6 +58,10 @@ _LOGGER = logging.getLogger(__name__)
 
 # CO2 Faktor für deutschen Strommix (kg CO2 pro kWh)
 CO2_FACTOR_GRID = 0.4
+
+# Reine Leistungs-Updates (W) lösen höchstens alle N Sekunden ein Update ALLER
+# Entities aus. Schnelle Listener (Überschuss-Sensoren) bekommen jedes Update.
+NOTIFY_THROTTLE_S = 30.0
 
 
 class PVManagementFixController:
@@ -207,6 +212,13 @@ class PVManagementFixController:
         # Listener
         self._remove_listeners = []
         self._entity_listeners = []
+        # Teilmenge von _entity_listeners, die auch bei gedrosselten
+        # Leistungs-Updates sofort informiert wird (PV-Überschuss)
+        self._fast_listeners = []
+        self._last_full_notify = 0.0  # time.monotonic()
+        self._notify_pending_unsub = None
+        # State-Listener nur für die konfigurierten Entities (Befund #9)
+        self._state_unsub = None
         # Gesetzt in async_stop(): verhindert, dass ein entladener Controller
         # (Reload/Unload) noch Entities anstößt oder in den Helper schreibt.
         self._stopping = False
@@ -1421,22 +1433,63 @@ class PVManagementFixController:
     # ENTITY MANAGEMENT
     # =========================================================================
 
-    def register_entity_listener(self, cb) -> None:
-        """Sensoren registrieren sich hier für Updates."""
+    def register_entity_listener(self, cb, fast: bool = False) -> None:
+        """Sensoren registrieren sich hier für Updates.
+
+        fast=True: Listener bekommt auch jedes (gedrosselte) Leistungs-Update
+        sofort — für PV-Überschuss-Sensoren, die zeitnah schalten müssen.
+        """
         if cb not in self._entity_listeners:
             self._entity_listeners.append(cb)
+        if fast and cb not in self._fast_listeners:
+            self._fast_listeners.append(cb)
 
     def unregister_entity_listener(self, cb) -> None:
         """Entfernt einen Entity-Listener."""
-        try:
-            self._entity_listeners.remove(cb)
-        except ValueError:
-            pass
+        for listeners in (self._entity_listeners, self._fast_listeners):
+            try:
+                listeners.remove(cb)
+            except ValueError:
+                pass
+
+    def _notify_throttled(self) -> None:
+        """Gedrosseltes Update für reine Leistungs-/Anzeige-Änderungen (Befund #9).
+
+        Schnelle Listener (PV-Überschuss) sofort, alle anderen Entities samt
+        Helper-Sync höchstens alle NOTIFY_THROTTLE_S Sekunden. Ein ausstehendes
+        Update wird nachgeholt, damit der letzte Stand nicht verloren geht.
+        """
+        if self._stopping:
+            return
+        elapsed = time.monotonic() - self._last_full_notify
+        if elapsed >= NOTIFY_THROTTLE_S:
+            self._notify_entities()
+            return
+        for cb in list(self._fast_listeners):
+            try:
+                cb()
+            except Exception as e:
+                _LOGGER.debug("Entity-Listener Fehler (ignoriert): %s", e)
+        if self._notify_pending_unsub is None:
+            from homeassistant.helpers.event import async_call_later
+            self._notify_pending_unsub = async_call_later(
+                self.hass, NOTIFY_THROTTLE_S - elapsed, self._flush_throttled_notify
+            )
+
+    @callback
+    def _flush_throttled_notify(self, _now) -> None:
+        """Holt ein gedrosseltes Update nach."""
+        self._notify_pending_unsub = None
+        self._notify_entities()
 
     def _notify_entities(self) -> None:
         """Informiert alle Entities über Zustandsänderungen."""
         if self._stopping:
             return
+        self._last_full_notify = time.monotonic()
+        if self._notify_pending_unsub is not None:
+            self._notify_pending_unsub()
+            self._notify_pending_unsub = None
         for cb in list(self._entity_listeners):
             try:
                 cb()
@@ -2411,15 +2464,16 @@ class PVManagementFixController:
             self._energy_seen.add("_consumption_kwh")
         elif entity_id == self.pv_power_entity:
             self._pv_power = self._convert_power_to_w(entity_id, value)
-            self._notify_entities()
+            self._notify_throttled()
         elif entity_id == self.house_power_entity:
             self._house_power = self._convert_power_to_w(entity_id, value)
-            self._notify_entities()
+            self._notify_throttled()
         elif entity_id == self.shiftable_load_entity:
             self._shiftable_load_power = self._convert_power_to_w(entity_id, value)
-            self._notify_entities()
-        elif entity_id in (self.battery_soc_entity, self.battery_charge_entity, self.battery_discharge_entity):
-            self._notify_entities()
+            self._notify_throttled()
+        elif entity_id in (self.battery_soc_entity, self.battery_charge_entity, self.battery_discharge_entity,
+                           self.battery_power_entity, self.grid_power_entity):
+            self._notify_throttled()
         elif entity_id == self.benchmark_heatpump_entity:
             value = self._convert_energy_to_kwh(entity_id, value)
             if self._wp_first_seen_date is None:
@@ -2446,7 +2500,7 @@ class PVManagementFixController:
                     self._string_tracked_kwh.get(entity_id, 0.0) + (value - last)
                 )
             self._string_last_kwh[entity_id] = value
-            self._notify_entities()
+            self._notify_throttled()
 
         # PV-String Power Peak-Tracking
         elif entity_id in self._string_power_entity_ids:
@@ -2462,7 +2516,7 @@ class PVManagementFixController:
             daily_peak = self._string_daily_peak_w.get(entity_id, 0.0)
             if value > daily_peak:
                 self._string_daily_peak_w[entity_id] = value
-            self._notify_entities()
+            self._notify_throttled()
 
         if changed:
             self._process_energy_update()
@@ -2618,13 +2672,9 @@ class PVManagementFixController:
             async_call_later(self.hass, 60.0, delayed_init_check)
         )
 
-        @callback
-        def state_listener(event: Event):
-            self._on_state_changed(event)
-
-        self._remove_listeners.append(
-            self.hass.bus.async_listen(EVENT_STATE_CHANGED, state_listener)
-        )
+        # Nur die konfigurierten Entities beobachten statt jedes State-Change-
+        # Event im ganzen System (Befund #9)
+        self._subscribe_state_listener()
 
         # Zeitbasierte Trigger (Issues #7 + #8) — unabhängig von Sensor-Events.
         from homeassistant.helpers.event import (
@@ -2670,6 +2720,39 @@ class PVManagementFixController:
 
         self._notify_entities()
 
+    def _tracked_entity_ids(self) -> list[str]:
+        """Alle Entities, deren Zustandsänderungen der Controller verarbeitet."""
+        ids = {
+            self.pv_production_entity, self.grid_export_entity,
+            self.grid_import_entity, self.consumption_entity,
+            self.pv_power_entity, self.house_power_entity, self.shiftable_load_entity,
+            self.battery_soc_entity, self.battery_charge_entity, self.battery_discharge_entity,
+            self.battery_power_entity, self.grid_power_entity,
+            self.benchmark_heatpump_entity,
+        }
+        ids |= self._string_entity_ids
+        ids |= self._string_power_entity_ids
+        return sorted(e for e in ids if e)
+
+    def _subscribe_state_listener(self) -> None:
+        """(Neu-)Abonniert State-Changes der konfigurierten Entities.
+
+        Wird auch nach Options-Änderungen ohne Reload aufgerufen, damit neu
+        gewählte Sensoren sofort beobachtet werden.
+        """
+        from homeassistant.helpers.event import async_track_state_change_event
+
+        if self._state_unsub is not None:
+            self._state_unsub()
+            self._state_unsub = None
+        if self._stopping:
+            return
+        entity_ids = self._tracked_entity_ids()
+        if entity_ids:
+            self._state_unsub = async_track_state_change_event(
+                self.hass, entity_ids, self._on_state_changed
+            )
+
     async def async_stop(self) -> None:
         """Stoppt das Tracking.
 
@@ -2677,6 +2760,13 @@ class PVManagementFixController:
         mehr passieren, und bricht dann alle Listener und Timer ab.
         """
         self._stopping = True
+        if self._state_unsub is not None:
+            self._state_unsub()
+            self._state_unsub = None
+        if self._notify_pending_unsub is not None:
+            self._notify_pending_unsub()
+            self._notify_pending_unsub = None
+        self._fast_listeners.clear()
         for remove in self._remove_listeners:
             try:
                 remove()
@@ -2818,6 +2908,8 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                     await hass.config_entries.async_reload(entry.entry_id)
                 else:
                     ctrl._load_options()
+                    # Geänderte Sensor-Auswahl sofort beobachten
+                    ctrl._subscribe_state_listener()
                     # Geänderte Energie-Korrektur: nur das Delta zum jetzt gültigen
                     # Preis bewerten (Issue #19)
                     ctrl._fix_offset_valuation()
