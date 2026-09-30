@@ -551,13 +551,15 @@ class TotalSavingsSensor(BaseEntity, RestoreEntity):
             "daily_grid_import_cost": round(self.ctrl._daily_grid_import_cost, 4),
             "daily_feed_in_earnings": round(self.ctrl._daily_feed_in_earnings, 4),
             "daily_feed_in_kwh": round(self.ctrl._daily_feed_in_kwh, 4),
-            "daily_reset_date": date.today().isoformat(),
+            # Tatsächlicher Tracking-Tag/-Monat statt "heute" — sonst würden
+            # nicht zurückgesetzte Vortageswerte als heutige gespeichert (#8)
+            "daily_reset_date": (self.ctrl._daily_tracking_date or dt_util.now().date()).isoformat(),
             "quota_day_start_meter": self.ctrl._quota_day_start_meter,
             # Monthly tracking (persistent)
             "monthly_grid_import_kwh": round(self.ctrl._monthly_grid_import_kwh, 4),
             "monthly_grid_import_cost": round(self.ctrl._monthly_grid_import_cost, 4),
-            "monthly_reset_month": date.today().month,
-            "monthly_reset_year": date.today().year,
+            "monthly_reset_month": self.ctrl._monthly_tracking_month or dt_util.now().month,
+            "monthly_reset_year": self.ctrl._monthly_tracking_year or dt_util.now().year,
             # Benchmark snapshot
             "benchmark_start_date": self.ctrl._benchmark_start_date.isoformat() if self.ctrl._benchmark_start_date else None,
             "benchmark_start_self_consumption": round(self.ctrl._benchmark_start_self_consumption, 4),

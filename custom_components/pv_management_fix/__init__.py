@@ -50,6 +50,7 @@ from .const import (
 from .calc import (
     helper_savings_offset, start_of_day,
     offset_value_eur, revalue_energy_offset,
+    max_delta_kwh, previous_month,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -146,9 +147,19 @@ class PVManagementFixController:
         self._monthly_grid_import_cost = 0.0
         self._monthly_grid_import_kwh = 0.0
         self._monthly_tracking_month: int | None = None
+        self._monthly_tracking_year: int | None = None
+        # Abgeschlossener Vormonat (für den Monatsbericht am 1., Befund #8)
+        self._last_month_summary: dict[str, Any] | None = None
 
         # Flag ob Werte aus Restore geladen wurden
         self._restored = False
+        # Ausfallzeit (s) seit dem letzten Speichern — lockert die Sprung-Grenze
+        # für das ERSTE Energie-Update nach einem Restore (Befund #7)
+        self._pending_downtime_s: float | None = None
+        # Energie-Sensoren, die seit dem Start einen echten Wert geliefert haben.
+        # Solange ein konfigurierter Sensor fehlt, wird nicht gerechnet — sonst
+        # würde ein 0-Wert gegen die persistierten Baselines verrechnet.
+        self._energy_seen: set[str] = set()
         self._first_seen_date: date | None = None
 
         # Notification Tracking (verhindert Spam)
@@ -157,6 +168,7 @@ class PVManagementFixController:
         self._quota_warning_100_sent = False
         self._quota_over_budget_sent = False
         self._monthly_summary_month: int | None = None
+        self._monthly_summary_year: int | None = None
 
         # Benchmark-Startpunkte (Snapshot bei Reset/Erststart)
         self._benchmark_start_date: date | None = None
@@ -290,6 +302,9 @@ class PVManagementFixController:
         # Amortisation Helper (Pflicht für Persistenz)
         self.amortisation_helper = opts.get(CONF_AMORTISATION_HELPER)
         self.restore_from_helper = opts.get(CONF_RESTORE_FROM_HELPER, False)
+        # Helper ist nur die Wahrheit, solange restore_from_helper aktiv ist
+        if not self.restore_from_helper:
+            self._helper_offset = None
 
         # Jährliche Kosten (Versicherung, Wartung etc.)
         self.yearly_cost = opts.get(CONF_YEARLY_COST, DEFAULT_YEARLY_COST)
@@ -1598,25 +1613,59 @@ class PVManagementFixController:
             })
             _LOGGER.warning("Kontingent überschritten: %s", message)
 
+    def _roll_monthly_tracking(self, today: date) -> None:
+        """Monatswechsel: Vormonat sichern, Monatswerte zurücksetzen.
+
+        Zeitgesteuert (Mitternacht) UND im Energie-Update aufgerufen, damit der
+        Reset nicht von Sensor-Events abhängt und der Monatsbericht am 1. die
+        Werte des Vormonats bekommt statt ~0 (Befund #8).
+        """
+        if self._monthly_tracking_month is None or self._monthly_tracking_year is None:
+            self._monthly_tracking_month = today.month
+            self._monthly_tracking_year = today.year
+            return
+        if (self._monthly_tracking_year, self._monthly_tracking_month) == (today.year, today.month):
+            return
+        self._last_month_summary = {
+            "year": self._monthly_tracking_year,
+            "month": self._monthly_tracking_month,
+            "grid_import_kwh": self._monthly_grid_import_kwh,
+            "grid_import_cost": self._monthly_grid_import_cost,
+        }
+        self._monthly_grid_import_cost = 0.0
+        self._monthly_grid_import_kwh = 0.0
+        self._monthly_tracking_month = today.month
+        self._monthly_tracking_year = today.year
+
     def _check_monthly_summary(self) -> None:
         """Sendet monatliche Zusammenfassung am 1. des Monats."""
-        today = date.today()
+        today = dt_util.now().date()
 
         # Nur am 1. des Monats und nur einmal pro Monat
         if today.day != 1:
             return
-        if self._monthly_summary_month == today.month:
+        if (self._monthly_summary_month, self._monthly_summary_year) == (today.month, today.year):
             return
 
+        # Erst Monatswechsel sicherstellen, dann den gesicherten Vormonat melden
+        self._roll_monthly_tracking(today)
         self._monthly_summary_month = today.month
+        self._monthly_summary_year = today.year
 
         # Berechne Vormonat
         last_month = today - timedelta(days=1)
         month_name = last_month.strftime("%B %Y")
 
-        # Monatliche Werte (aus dem Tracking)
-        monthly_savings = self._monthly_grid_import_cost  # Ungefähr
-        monthly_kwh = self._monthly_grid_import_kwh
+        # Monatliche Werte des abgeschlossenen Vormonats
+        prev_year, prev_month = previous_month(today.year, today.month)
+        summary = self._last_month_summary or {}
+        if summary.get("year") == prev_year and summary.get("month") == prev_month:
+            monthly_savings = float(summary.get("grid_import_cost") or 0.0)
+            monthly_kwh = float(summary.get("grid_import_kwh") or 0.0)
+        else:
+            # Kein Tracking im Vormonat (z. B. Neuinstallation)
+            monthly_savings = 0.0
+            monthly_kwh = 0.0
 
         percent = self.amortisation_percent
         amortised = "amortisiert" if percent is None else f"{percent:.1f}% amortisiert"
@@ -1700,16 +1749,43 @@ class PVManagementFixController:
             except (ValueError, TypeError):
                 pass
 
-        # Monthly tracking restore
+        # Monthly tracking restore (Befund #8): Tracking-Monat mit setzen, sonst
+        # setzt das erste Update nach dem Neustart die Monatswerte auf 0.
+        # Stammt der Stand aus einem früheren Monat, wird er als dieser Monat
+        # übernommen — _roll_monthly_tracking() sichert ihn dann als Vormonat
+        # (Monatsbericht) und startet den neuen Monat bei 0.
         monthly_reset_month = data.get("monthly_reset_month")
         monthly_reset_year = data.get("monthly_reset_year")
         if monthly_reset_month is not None and monthly_reset_year is not None:
             try:
-                if int(monthly_reset_month) == today.month and int(monthly_reset_year) == today.year:
+                m, y = int(monthly_reset_month), int(monthly_reset_year)
+                if 1 <= m <= 12 and (y, m) <= (today.year, today.month):
                     self._monthly_grid_import_kwh = safe_float(data.get("monthly_grid_import_kwh"))
                     self._monthly_grid_import_cost = safe_float(data.get("monthly_grid_import_cost"))
+                    self._monthly_tracking_month = m
+                    self._monthly_tracking_year = y
             except (ValueError, TypeError):
                 pass
+        summary = data.get("last_month_summary")
+        if isinstance(summary, dict):
+            self._last_month_summary = dict(summary)
+        try:
+            if data.get("monthly_summary_month") is not None and data.get("monthly_summary_year") is not None:
+                self._monthly_summary_month = int(data["monthly_summary_month"])
+                self._monthly_summary_year = int(data["monthly_summary_year"])
+        except (ValueError, TypeError):
+            pass
+
+        # Ausfallzeit seit dem letzten Speichern (Befund #7)
+        saved_at = data.get("saved_at")
+        if saved_at:
+            saved_dt = dt_util.parse_datetime(str(saved_at))
+            if saved_dt is not None:
+                self._pending_downtime_s = max(0.0, (dt_util.utcnow() - saved_dt).total_seconds())
+
+        # Helper-Offset (Fallback, falls der Helper beim Start nicht verfügbar ist)
+        if self.restore_from_helper:
+            self._helper_offset = safe_float_or_none(data.get("helper_offset"))
 
         first_seen = data.get("first_seen_date")
         if first_seen:
@@ -1900,6 +1976,24 @@ class PVManagementFixController:
             "energy_offset_self_eur": self._offset_self_eur,
             "energy_offset_export_applied_kwh": self._offset_export_applied_kwh,
             "energy_offset_export_eur": self._offset_export_eur,
+            # Letzte Sensor-Werte + Baselines (Befund #7): ohne sie ging die
+            # Energie während einer HA-Downtime verloren (Baseline neu gesnappt).
+            "last_pv_production_kwh": self._last_pv_production_kwh,
+            "last_grid_export_kwh": self._last_grid_export_kwh,
+            "last_grid_import_kwh": self._last_grid_import_kwh,
+            "baseline_pv_production_kwh": self._baseline_pv_production_kwh,
+            "baseline_grid_export_kwh": self._baseline_grid_export_kwh,
+            "baseline_self_consumption_kwh": self._baseline_self_consumption_kwh,
+            "baseline_feed_in_kwh": self._baseline_feed_in_kwh,
+            "baseline_consumption_kwh": self._baseline_consumption_kwh,
+            "baseline_grid_import_kwh": self._baseline_grid_import_kwh,
+            "saved_at": dt_util.utcnow().isoformat(),
+            # Monatsbericht (Befund #8)
+            "last_month_summary": self._last_month_summary,
+            "monthly_summary_month": self._monthly_summary_month,
+            "monthly_summary_year": self._monthly_summary_year,
+            # Helper-Offset (Befund #1)
+            "helper_offset": self._helper_offset,
         }
 
     def get_string_production_kwh(self, entity_id: str) -> float:
@@ -2000,6 +2094,19 @@ class PVManagementFixController:
         # Nachholen, falls der Preissensor beim Start noch nicht verfügbar war
         if self._offset_self_eur is None or self._offset_export_eur is None:
             self._fix_offset_valuation()
+
+        # Erst rechnen, wenn ALLE konfigurierten Energie-Sensoren einen echten
+        # Wert geliefert haben — ein Default-0 würde gegen die persistierten
+        # Baselines/_last_* verrechnet (Befund #7).
+        for entity_id, attr in (
+            (self.pv_production_entity, "_pv_production_kwh"),
+            (self.grid_export_entity, "_grid_export_kwh"),
+            (self.grid_import_entity, "_grid_import_kwh"),
+            (self.consumption_entity, "_consumption_kwh"),
+        ):
+            if entity_id and attr not in self._energy_seen:
+                self._notify_entities()
+                return
 
         # Init-Guard: Wenn _last_* None → setze und return.
         if (self._last_pv_production_kwh is None
@@ -2123,14 +2230,17 @@ class PVManagementFixController:
         effective_delta_feed_in = new_total_feed_in - self._total_feed_in_kwh
         delta_import = current_import - self._last_grid_import_kwh
 
-        # Sanity: unrealistische Sprünge ignorieren + re-baseline
-        MAX_DELTA_KWH = 50.0
-        if (abs(effective_delta_self) > MAX_DELTA_KWH
-                or abs(effective_delta_feed_in) > MAX_DELTA_KWH
-                or abs(delta_import) > MAX_DELTA_KWH):
+        # Sanity: unrealistische Sprünge ignorieren + re-baseline.
+        # Beim ersten Update nach einem Restore wächst die Grenze mit der
+        # Ausfallzeit, damit die Energie der Downtime nicht verworfen wird (#7).
+        limit_kwh = max_delta_kwh(self._pending_downtime_s)
+        self._pending_downtime_s = None
+        if (abs(effective_delta_self) > limit_kwh
+                or abs(effective_delta_feed_in) > limit_kwh
+                or abs(delta_import) > limit_kwh):
             _LOGGER.warning(
-                "Unrealistic delta detected (self=%.1f, feed=%.1f, import=%.1f) — re-baselining",
-                effective_delta_self, effective_delta_feed_in, delta_import,
+                "Unrealistic delta detected (self=%.1f, feed=%.1f, import=%.1f, limit=%.0f kWh) — re-baselining",
+                effective_delta_self, effective_delta_feed_in, delta_import, limit_kwh,
             )
             self._baseline_pv_production_kwh = current_pv
             self._baseline_grid_export_kwh = current_export
@@ -2191,11 +2301,7 @@ class PVManagementFixController:
             self._daily_grid_import_kwh += delta_import
             self._daily_grid_import_cost += import_cost
 
-            current_month = today.month
-            if self._monthly_tracking_month != current_month:
-                self._monthly_grid_import_cost = 0.0
-                self._monthly_grid_import_kwh = 0.0
-                self._monthly_tracking_month = current_month
+            self._roll_monthly_tracking(today)
             self._monthly_grid_import_kwh += delta_import
             self._monthly_grid_import_cost += import_cost
 
@@ -2232,6 +2338,8 @@ class PVManagementFixController:
         später (oder gar nicht). Dieser Zeit-Trigger feuert verlässlich.
         """
         today = dt_util.now().date()
+        # Monatswechsel unabhängig von Sensor-Events (Befund #8)
+        self._roll_monthly_tracking(today)
         if self._daily_tracking_date == today:
             return
         _LOGGER.debug("Mitternachts-Reset: Tageswerte werden zurückgesetzt (%s)", today)
@@ -2288,15 +2396,19 @@ class PVManagementFixController:
         # Energie-Sensoren — Wh→kWh Konvertierung
         if entity_id == self.pv_production_entity:
             self._pv_production_kwh = self._convert_energy_to_kwh(entity_id, value)
+            self._energy_seen.add("_pv_production_kwh")
             changed = True
         elif entity_id == self.grid_export_entity:
             self._grid_export_kwh = self._convert_energy_to_kwh(entity_id, value)
+            self._energy_seen.add("_grid_export_kwh")
             changed = True
         elif entity_id == self.grid_import_entity:
             self._grid_import_kwh = self._convert_energy_to_kwh(entity_id, value)
+            self._energy_seen.add("_grid_import_kwh")
             changed = True
         elif entity_id == self.consumption_entity:
             self._consumption_kwh = self._convert_energy_to_kwh(entity_id, value)
+            self._energy_seen.add("_consumption_kwh")
         elif entity_id == self.pv_power_entity:
             self._pv_power = self._convert_power_to_w(entity_id, value)
             self._notify_entities()
@@ -2377,6 +2489,7 @@ class PVManagementFixController:
                     try:
                         setattr(self, attr, self._convert_energy_to_kwh(entity_id, float(state.state)))
                         sensor_available[attr] = True
+                        self._energy_seen.add(attr)
                     except (ValueError, TypeError):
                         pass
 
