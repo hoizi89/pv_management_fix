@@ -49,6 +49,7 @@ from .const import (
     CONF_SHIFTABLE_LOAD_ENTITY,
 )
 from .calc import (
+    convert_price_to_eur,
     helper_savings_offset, start_of_day,
     offset_value_eur, revalue_energy_offset,
     max_delta_kwh, previous_month,
@@ -247,6 +248,8 @@ class PVManagementFixController:
         self.electricity_price = opts.get(CONF_ELECTRICITY_PRICE, DEFAULT_ELECTRICITY_PRICE)
         self.electricity_price_entity = opts.get(CONF_ELECTRICITY_PRICE_ENTITY)
         self.electricity_price_unit = opts.get(CONF_ELECTRICITY_PRICE_UNIT, DEFAULT_ELECTRICITY_PRICE_UNIT)
+        # Ob die Einheit explizit gespeichert ist (ältere Versionen hatten das Feld)
+        self._electricity_price_unit_configured = CONF_ELECTRICITY_PRICE_UNIT in opts
         self.feed_in_tariff = opts.get(CONF_FEED_IN_TARIFF, DEFAULT_FEED_IN_TARIFF)
         self.feed_in_tariff_entity = opts.get(CONF_FEED_IN_TARIFF_ENTITY)
         self.feed_in_tariff_unit = opts.get(CONF_FEED_IN_TARIFF_UNIT, DEFAULT_FEED_IN_TARIFF_UNIT)
@@ -400,15 +403,27 @@ class PVManagementFixController:
         return value
 
     def _convert_price_to_eur(self, price: float, unit: str, auto_detect: bool = False) -> float:
-        """Konvertiert Preis zu Euro/kWh (von Cent falls nötig)."""
+        """Konvertiert einen statischen Preis zu Euro/kWh (von Cent falls nötig)."""
         if auto_detect:
-            if price > 1.0:
-                return price / 100.0
-            else:
-                return price
+            return convert_price_to_eur(price)
         if unit == PRICE_UNIT_CENT:
             return price / 100.0
         return price
+
+    def _convert_sensor_price_to_eur(self, entity_id: str, price: float, configured_unit: str | None) -> float:
+        """Konvertiert einen Preis-SENSORWERT zu Euro/kWh (Befund #10).
+
+        Bevorzugt die unit_of_measurement des Sensors (ct/kWh, €/kWh …), dann
+        die konfigurierte Einheit, Auto-Detect nur ohne jede Einheit. Die
+        konfigurierte Einheit "eur" ist Default aus älteren Versionen und daher
+        nicht aussagekräftig — nur ein explizites "cent" wird übernommen.
+        """
+        uom = None
+        state_obj = self.hass.states.get(entity_id)
+        if state_obj:
+            uom = state_obj.attributes.get("unit_of_measurement")
+        unit = configured_unit if configured_unit == PRICE_UNIT_CENT else None
+        return convert_price_to_eur(price, configured_unit=unit, sensor_uom=uom)
 
     def _get_entity_value(self, entity_id: str | None, fallback: float = 0.0) -> tuple[float, bool]:
         """Holt Wert von Entity oder verwendet Fallback."""
@@ -431,8 +446,11 @@ class PVManagementFixController:
             )
             self._price_sensor_available = is_available
             if is_available:
-                # Auto-detect: > 1 = wahrscheinlich ct/kWh
-                price_eur = self._convert_price_to_eur(raw_price, self.electricity_price_unit, auto_detect=True)
+                # Einheit aus dem Sensor bzw. der Konfiguration; Auto-Detect nur ohne Einheit
+                price_eur = self._convert_sensor_price_to_eur(
+                    self.electricity_price_entity, raw_price,
+                    self.electricity_price_unit if self._electricity_price_unit_configured else None,
+                )
                 self._last_known_electricity_price = price_eur
                 return price_eur
             elif self._last_known_electricity_price is not None:
@@ -449,10 +467,14 @@ class PVManagementFixController:
             )
             self._tariff_sensor_available = is_available
             if is_available:
-                self._last_known_feed_in_tariff = raw_tariff
-                return self._convert_price_to_eur(raw_tariff, self.feed_in_tariff_unit, auto_detect=True)
+                # Einheit aus dem Sensor bzw. der Konfiguration; Auto-Detect nur ohne Einheit
+                tariff_eur = self._convert_sensor_price_to_eur(
+                    self.feed_in_tariff_entity, raw_tariff, self.feed_in_tariff_unit,
+                )
+                self._last_known_feed_in_tariff = tariff_eur
+                return tariff_eur
             elif self._last_known_feed_in_tariff is not None:
-                return self._convert_price_to_eur(self._last_known_feed_in_tariff, self.feed_in_tariff_unit, auto_detect=True)
+                return self._last_known_feed_in_tariff
         self._tariff_sensor_available = True
         return self._convert_price_to_eur(self.feed_in_tariff, self.feed_in_tariff_unit, auto_detect=False)
 

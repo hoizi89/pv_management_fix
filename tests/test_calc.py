@@ -183,3 +183,9 @@ def test_max_delta_scales_with_downtime(calc):
     # Gedeckelt
     capped = calc.max_delta_kwh(3600 * 24 * 365)
     assert capped == pytest.approx(calc.MAX_DELTA_KWH + calc.MAX_DOWNTIME_HOURS * calc.MAX_DELTA_KWH_PER_HOUR)
+
+
+def test_auto_detect_negative_cent_spot_price(calc):
+    """Auto-Detect nutzt den Betrag: -5 (ct) ist kein Preis von -5 €/kWh."""
+    assert calc.convert_price_to_eur(-5.0) == pytest.approx(-0.05)
+    assert calc.convert_price_to_eur(-0.02) == pytest.approx(-0.02)

@@ -58,7 +58,8 @@ def convert_price_to_eur(
     Reihenfolge (#10):
     1. unit_of_measurement des Sensors, falls eindeutig (ct/kWh, €/kWh …)
     2. explizit konfigurierte Einheit (eur/cent)
-    3. Auto-Detect nur, wenn gar keine Einheit bekannt ist: > 1 → ct/kWh
+    3. Auto-Detect nur, wenn gar keine Einheit bekannt ist: |Preis| > 1 → ct/kWh
+       (Betrag, damit auch negative Spotpreise in ct erkannt werden)
 
     Damit werden ct-Werte ≤ 1 und negative Spotpreise nicht mehr fälschlich
     als €/kWh gewertet, sobald eine Einheit bekannt ist.
@@ -69,7 +70,7 @@ def convert_price_to_eur(
     if unit == PRICE_UNIT_EUR:
         return price
     # Auto-Detect (keine Einheit bekannt)
-    if price > AUTO_DETECT_CENT_THRESHOLD:
+    if abs(price) > AUTO_DETECT_CENT_THRESHOLD:
         return price / 100.0
     return price
 
