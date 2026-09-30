@@ -237,8 +237,11 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
         """Speichert die Options und zeigt das Menü wieder an."""
         # Nur die optionalen Entity-Keys der AKTUELLEN Seite auf None setzen,
         # damit ein entfernter Sensor gelöscht wird ohne andere Seiten zu beeinflussen
+        # (auch wenn der Sensor nur aus der Ersteinrichtung in entry.data stammt)
         for key in optional_entity_keys:
-            if key not in user_input and key in self.config_entry.options:
+            if key not in user_input and (
+                key in self.config_entry.options or key in self.config_entry.data
+            ):
                 user_input[key] = None
 
         self._data.update(user_input)
@@ -246,8 +249,14 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
         final_data.update(self.config_entry.options)
         final_data.update(self._data)
 
-        # None-Werte aufräumen (verhindert "Entity None" Fehler)
-        final_data = {k: v for k, v in final_data.items() if v is not None}
+        # None-Werte aufräumen (verhindert "Entity None" Fehler) — AUSSER für
+        # Keys, die auch in entry.data stehen: Dort muss das None in den Options
+        # bleiben, sonst greift beim Merge {**data, **options} wieder der alte
+        # Sensor aus der Ersteinrichtung und das Entfernen wirkt nicht.
+        final_data = {
+            k: v for k, v in final_data.items()
+            if v is not None or k in self.config_entry.data
+        }
 
         self.hass.config_entries.async_update_entry(self.config_entry, options=final_data)
         return await self.async_step_init()
@@ -650,15 +659,7 @@ class PVManagementFixOptionsFlow(config_entries.OptionsFlow):
             ctrl = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id, {}).get(DATA_CTRL)
             if ctrl and target:
                 if target == "amortisation":
-                    ctrl._total_self_consumption_kwh = 0.0
-                    ctrl._total_feed_in_kwh = 0.0
-                    ctrl._accumulated_savings_self = 0.0
-                    ctrl._accumulated_earnings_feed = 0.0
-                    ctrl._first_seen_date = None
-                    ctrl._initialize_from_sensors()
-                    ctrl._last_pv_production_kwh = ctrl._pv_production_kwh
-                    ctrl._last_grid_export_kwh = ctrl._grid_export_kwh
-                    ctrl._notify_entities()
+                    ctrl.reset_amortisation_tracking()
                     _LOGGER.info("Reset via Settings: Amortisation neu initialisiert")
                 elif target == "grid_import":
                     ctrl.reset_grid_import_tracking()

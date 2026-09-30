@@ -49,7 +49,7 @@ from .const import (
     CONF_SHIFTABLE_LOAD_ENTITY,
 )
 from .calc import (
-    convert_price_to_eur,
+    clamp, convert_price_to_eur,
     helper_savings_offset, start_of_day,
     offset_value_eur, revalue_energy_offset,
     max_delta_kwh, previous_month,
@@ -342,7 +342,7 @@ class PVManagementFixController:
         # PV-Strings
         self.pv_strings = []  # list of (name, energy_entity_id, power_entity_id_or_None)
         for name_key, entity_key, power_key, kwp_key in PV_STRING_CONFIGS:
-            s_name = opts.get(name_key, "").strip()
+            s_name = (opts.get(name_key) or "").strip()
             s_entity = opts.get(entity_key)
             s_power = opts.get(power_key)
             s_kwp = opts.get(kwp_key, 0.0)
@@ -354,6 +354,10 @@ class PVManagementFixController:
                 self.pv_strings.append((s_name, s_entity, s_power, s_kwp))
         self._string_entity_ids = {e for _, e, _, _ in self.pv_strings}
         self._string_power_entity_ids = {p for _, _, p, _ in self.pv_strings if p}
+
+        # Signatur der Optionen, die bestimmen, WELCHE Entities angelegt werden
+        # bzw. was nur beim Start aufgebaut wird → Änderung erfordert Reload
+        self._structure_sig = _structure_signature(opts)
 
     @property
     def fixed_price_ct(self) -> float:
@@ -719,7 +723,7 @@ class PVManagementFixController:
         start = self.quota_start_date
         if start is None:
             return 0
-        elapsed = (date.today() - start).days
+        elapsed = (dt_util.now().date() - start).days
         if elapsed < 0:
             return 0
         return min(elapsed + 1, self.quota_days_total)
@@ -756,7 +760,7 @@ class PVManagementFixController:
         if self.quota_days_total <= 0:
             return 0.0
         start = self.quota_start_date
-        if start is None or date.today() < start:
+        if start is None or dt_util.now().date() < start:
             return 0.0
         return (self.quota_days_elapsed / self.quota_days_total) * self.quota_yearly_kwh
 
@@ -782,7 +786,7 @@ class PVManagementFixController:
         day_start = self._quota_day_start_meter
         qs = self.quota_start_date
         if (self.quota_enabled and qs is not None
-                and date.today() == qs and self.quota_start_meter > 0):
+                and dt_util.now().date() == qs and self.quota_start_meter > 0):
             day_start = self.quota_start_meter
         if day_start <= 0:
             return 0.0
@@ -1114,7 +1118,7 @@ class PVManagementFixController:
                     install_date = datetime.fromisoformat(self.installation_date).date()
                 else:
                     install_date = self.installation_date
-                return (date.today() - install_date).days
+                return (dt_util.now().date() - install_date).days
             except (ValueError, TypeError):
                 pass
         return self.days_tracking
@@ -1123,7 +1127,7 @@ class PVManagementFixController:
     def days_tracking(self) -> int:
         """Tage seit erstem Tracking (unabhängig von Installationsdatum)."""
         if self._first_seen_date:
-            return (date.today() - self._first_seen_date).days
+            return (dt_util.now().date() - self._first_seen_date).days
         return 0
 
     @property
@@ -1163,9 +1167,9 @@ class PVManagementFixController:
         if remaining is None:
             return None
         if remaining == 0:
-            return date.today()
+            return dt_util.now().date()
         from datetime import timedelta
-        return date.today() + timedelta(days=remaining)
+        return dt_util.now().date() + timedelta(days=remaining)
 
     @property
     def status_text(self) -> str:
@@ -1214,7 +1218,7 @@ class PVManagementFixController:
         # Fallback: Extrapolation
         if self._benchmark_start_date is None:
             return None
-        days = max(1, (date.today() - self._benchmark_start_date).days)
+        days = max(1, (dt_util.now().date() - self._benchmark_start_date).days)
         consumption = (
             (self._total_self_consumption_kwh - self._benchmark_start_self_consumption)
             + (self._tracked_grid_import_kwh - self._benchmark_start_grid_import)
@@ -1236,7 +1240,7 @@ class PVManagementFixController:
         # Fallback: Extrapolation
         if self._benchmark_start_date is None:
             return None
-        days = max(1, (date.today() - self._benchmark_start_date).days)
+        days = max(1, (dt_util.now().date() - self._benchmark_start_date).days)
         grid_since_start = self._tracked_grid_import_kwh - self._benchmark_start_grid_import
         if grid_since_start <= 0:
             return None
@@ -1268,7 +1272,7 @@ class PVManagementFixController:
                     wp_start = datetime.fromisoformat(self.benchmark_heatpump_date).date()
                 else:
                     wp_start = self.benchmark_heatpump_date
-                wp_days = max(1, (date.today() - wp_start).days)
+                wp_days = max(1, (dt_util.now().date() - wp_start).days)
                 state = self.hass.states.get(self.benchmark_heatpump_entity)
                 if state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                     total_kwh = self._convert_energy_to_kwh(
@@ -1281,7 +1285,7 @@ class PVManagementFixController:
         # Fallback: Delta-Tracking Extrapolation
         if self._wp_first_seen_date is None or self._tracked_wp_kwh <= 0:
             return None
-        wp_days = max(1, (date.today() - self._wp_first_seen_date).days)
+        wp_days = max(1, (dt_util.now().date() - self._wp_first_seen_date).days)
         return self._tracked_wp_kwh / wp_days * 365
 
     @property
@@ -1331,7 +1335,7 @@ class PVManagementFixController:
         # Fallback: Extrapolation
         if self._benchmark_start_date is None:
             return None
-        days = max(1, (date.today() - self._benchmark_start_date).days)
+        days = max(1, (dt_util.now().date() - self._benchmark_start_date).days)
         pv_since_start = (
             (self._total_self_consumption_kwh - self._benchmark_start_self_consumption)
             + (self._total_feed_in_kwh - self._benchmark_start_feed_in)
@@ -1358,7 +1362,7 @@ class PVManagementFixController:
         # Fallback: Extrapolation
         if self._benchmark_start_date is None:
             return None
-        days = max(1, (date.today() - self._benchmark_start_date).days)
+        days = max(1, (dt_util.now().date() - self._benchmark_start_date).days)
         pv_since_start = (
             (self._total_self_consumption_kwh - self._benchmark_start_self_consumption)
             + (self._total_feed_in_kwh - self._benchmark_start_feed_in)
@@ -1546,15 +1550,31 @@ class PVManagementFixController:
             if state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                 try:
                     helper_value = float(state.state)
+                    # Auf min/max des input_number begrenzen — sonst lehnt HA den
+                    # set_value-Aufruf ab und der Helper bleibt stehen
+                    h_min = state.attributes.get("min")
+                    h_max = state.attributes.get("max")
+                    target = clamp(
+                        current_savings,
+                        float(h_min) if h_min is not None else None,
+                        float(h_max) if h_max is not None else None,
+                    )
+                    if target != current_savings and not getattr(self, "_helper_clamp_warned", False):
+                        self._helper_clamp_warned = True
+                        _LOGGER.warning(
+                            "Gesamtersparnis %.2f € liegt außerhalb des Helper-Bereichs (%s…%s) — "
+                            "bitte min/max von %s anpassen",
+                            current_savings, h_min, h_max, self.amortisation_helper,
+                        )
                     # Nur updaten wenn sich der Wert signifikant geändert hat (> 0.01 EUR)
-                    if abs(helper_value - current_savings) > 0.01:
+                    if abs(helper_value - target) > 0.01:
                         self.hass.async_create_task(
                             self.hass.services.async_call(
                                 "input_number",
                                 "set_value",
                                 {
                                     "entity_id": self.amortisation_helper,
-                                    "value": round(current_savings, 2),
+                                    "value": round(target, 2),
                                 },
                             )
                         )
@@ -1899,7 +1919,7 @@ class PVManagementFixController:
         if dp_date:
             try:
                 dp = date.fromisoformat(dp_date) if isinstance(dp_date, str) else dp_date
-                if dp == date.today():
+                if dp == dt_util.now().date():
                     raw_dp = data.get("string_daily_peak_w", {})
                     self._string_daily_peak_w = {k: safe_float(v) for k, v in raw_dp.items()} if isinstance(raw_dp, dict) else {}
                     self._string_daily_peak_date = dp
@@ -2022,7 +2042,7 @@ class PVManagementFixController:
         self._total_feed_in_kwh = feed_in
         self._accumulated_savings_self = savings_self
         self._accumulated_earnings_feed = earnings_feed
-        self._first_seen_date = date.today()
+        self._first_seen_date = dt_util.now().date()
 
         # Baselines synchron zur Initialisierung mitsetzen — wir snappen den
         # aktuellen Sensor-Stand als Referenzpunkt.
@@ -2079,7 +2099,7 @@ class PVManagementFixController:
         """Gibt die durchschnittliche Tagesproduktion eines PV-Strings zurück."""
         if not self._string_first_seen_date:
             return None
-        days = max(1, (date.today() - self._string_first_seen_date).days)
+        days = max(1, (dt_util.now().date() - self._string_first_seen_date).days)
         tracked = self._string_tracked_kwh.get(entity_id, 0.0)
         return tracked / days if tracked > 0 else None
 
@@ -2101,7 +2121,7 @@ class PVManagementFixController:
         """Durchschnittliche Tagesproduktion aller Strings zusammen."""
         if not self._string_first_seen_date or not self._string_tracked_kwh:
             return None
-        days = max(1, (date.today() - self._string_first_seen_date).days)
+        days = max(1, (dt_util.now().date() - self._string_first_seen_date).days)
         total = sum(self._string_tracked_kwh.values())
         return round(total / days, 2) if total > 0 else None
 
@@ -2119,7 +2139,7 @@ class PVManagementFixController:
         tracked = self._string_tracked_kwh.get(energy_entity_id, 0.0)
         if tracked <= 0 or self._string_first_seen_date is None:
             return None
-        days = max(1, (date.today() - self._string_first_seen_date).days)
+        days = max(1, (dt_util.now().date() - self._string_first_seen_date).days)
         annual = tracked / days * 365
         return round(annual / installed_kwp, 0)
 
@@ -2338,7 +2358,7 @@ class PVManagementFixController:
         self._total_feed_in_kwh = new_total_feed_in
 
         # Tägliches Tracking: Reset bei Tageswechsel
-        # dt_util.now() respektiert die HA-Zeitzone (date.today() = OS-Zeit, Issue #7)
+        # dt_util.now() respektiert die HA-Zeitzone (dt_util.now().date() = OS-Zeit, Issue #7)
         today = dt_util.now().date()
         if self._daily_tracking_date != today:
             self._daily_grid_import_cost = 0.0
@@ -2464,7 +2484,7 @@ class PVManagementFixController:
             return
 
         if self._first_seen_date is None:
-            self._first_seen_date = date.today()
+            self._first_seen_date = dt_util.now().date()
 
         changed = False
 
@@ -2499,7 +2519,7 @@ class PVManagementFixController:
         elif entity_id == self.benchmark_heatpump_entity:
             value = self._convert_energy_to_kwh(entity_id, value)
             if self._wp_first_seen_date is None:
-                self._wp_first_seen_date = date.today()
+                self._wp_first_seen_date = dt_util.now().date()
             if self._last_wp_kwh is not None and value >= self._last_wp_kwh:
                 delta = value - self._last_wp_kwh
                 # Sanity check: max 200 kWh pro Update (verhindert Absolutwert als Delta)
@@ -2515,7 +2535,7 @@ class PVManagementFixController:
         elif entity_id in self._string_entity_ids:
             value = self._convert_energy_to_kwh(entity_id, value)
             if self._string_first_seen_date is None:
-                self._string_first_seen_date = date.today()
+                self._string_first_seen_date = dt_util.now().date()
             last = self._string_last_kwh.get(entity_id)
             if last is not None and value >= last:
                 self._string_tracked_kwh[entity_id] = (
@@ -2531,7 +2551,7 @@ class PVManagementFixController:
             if value > current_peak:
                 self._string_peak_w[entity_id] = value
             # Daily Peak: bei neuem Tag resetten
-            today = date.today()
+            today = dt_util.now().date()
             if self._string_daily_peak_date != today:
                 self._string_daily_peak_w = {}
                 self._string_daily_peak_date = today
@@ -2598,7 +2618,7 @@ class PVManagementFixController:
         # Wenn der User einen Wert > 0 manuell eingetragen hat, wird dieser NICHT überschrieben
         quota_start = self.quota_start_date
         if (self.quota_enabled and self.quota_start_meter == 0 and self._grid_import_kwh > 0
-                and quota_start is not None and date.today() >= quota_start):
+                and quota_start is not None and dt_util.now().date() >= quota_start):
             self.quota_start_meter = self._grid_import_kwh
             _LOGGER.info(
                 "Quota: Zählerstand automatisch erfasst: %.2f kWh",
@@ -2609,9 +2629,9 @@ class PVManagementFixController:
 
         # Quota: Tages-Zählerstand initialisieren
         if self._grid_import_kwh > 0:
-            if self._quota_day_start_date != date.today():
+            if self._quota_day_start_date != dt_util.now().date():
                 self._quota_day_start_meter = self._grid_import_kwh
-            self._quota_day_start_date = date.today()
+            self._quota_day_start_date = dt_util.now().date()
 
         # WP-Sensor initialisieren (last-Wert + first_seen_date)
         if self.benchmark_heatpump_entity:
@@ -2623,7 +2643,7 @@ class PVManagementFixController:
                     )
                     self._last_wp_kwh = val
                     if self._wp_first_seen_date is None:
-                        self._wp_first_seen_date = date.today()
+                        self._wp_first_seen_date = dt_util.now().date()
                 except (ValueError, TypeError):
                     pass
 
@@ -2650,11 +2670,11 @@ class PVManagementFixController:
                     except (ValueError, TypeError):
                         pass
         if self.pv_strings and self._string_first_seen_date is None:
-            self._string_first_seen_date = date.today()
+            self._string_first_seen_date = dt_util.now().date()
 
         # Benchmark-Snapshot auto-initialisieren (frischer Start)
         if self.benchmark_enabled and self._benchmark_start_date is None:
-            self._benchmark_start_date = date.today()
+            self._benchmark_start_date = dt_util.now().date()
             self._benchmark_start_self_consumption = self._total_self_consumption_kwh
             self._benchmark_start_grid_import = self._tracked_grid_import_kwh
             self._benchmark_start_feed_in = self._total_feed_in_kwh
@@ -2803,6 +2823,32 @@ class PVManagementFixController:
                 _LOGGER.debug("Forecaster-Stop Fehler (ignoriert): %s", e)
             self.forecaster = None
 
+    def reset_amortisation_tracking(self) -> None:
+        """Amortisation neu aus den Sensor-Totals initialisieren (Options → Reset).
+
+        Baselines werden IMMER verworfen: Schlägt die Neu-Initialisierung fehl
+        (Sensor unavailable), würden sonst die alten Baselines gegen die auf 0
+        gesetzten Totals gerechnet. Der Helper-Offset wird ebenfalls verworfen —
+        nach dem Reset gilt der neu berechnete Stand (+ Options-Offset), der
+        dann in den Helper synchronisiert wird.
+        """
+        self._total_self_consumption_kwh = 0.0
+        self._total_feed_in_kwh = 0.0
+        self._accumulated_savings_self = 0.0
+        self._accumulated_earnings_feed = 0.0
+        self._first_seen_date = None
+        self._helper_offset = None
+        self._baseline_pv_production_kwh = None
+        self._baseline_grid_export_kwh = None
+        self._baseline_self_consumption_kwh = None
+        self._baseline_feed_in_kwh = None
+        self._baseline_consumption_kwh = None
+        self._baseline_grid_import_kwh = None
+        self._initialize_from_sensors()
+        self._last_pv_production_kwh = self._pv_production_kwh
+        self._last_grid_export_kwh = self._grid_export_kwh
+        self._notify_entities()
+
     def reset_grid_import_tracking(self) -> None:
         """Setzt das Strompreis-Tracking auf 0 zurück."""
         _LOGGER.info(
@@ -2826,7 +2872,7 @@ class PVManagementFixController:
         self._wp_first_seen_date = None
         self._last_wp_kwh = None
         # Benchmark-Startpunkt auf jetzt setzen
-        self._benchmark_start_date = date.today()
+        self._benchmark_start_date = dt_util.now().date()
         self._benchmark_start_self_consumption = self._total_self_consumption_kwh
         self._benchmark_start_grid_import = self._tracked_grid_import_kwh
         self._benchmark_start_feed_in = self._total_feed_in_kwh
@@ -2845,6 +2891,42 @@ class PVManagementFixController:
         self._string_daily_peak_w.clear()
         self._string_daily_peak_date = None
         self._notify_entities()
+
+
+def _structure_signature(opts: dict[str, Any]) -> tuple:
+    """Optionen, deren Änderung einen Reload erfordert (siehe Update-Listener)."""
+    def val(key, default=None):
+        v = opts.get(key, default)
+        return default if v is None else v
+
+    strings = tuple(
+        (
+            (opts.get(name_key) or "").strip(),
+            opts.get(entity_key) or None,
+            opts.get(power_key) or None,
+            str(opts.get(kwp_key) or 0),
+        )
+        for name_key, entity_key, power_key, kwp_key in PV_STRING_CONFIGS
+    )
+    return (
+        val(CONF_QUOTA_ENABLED, DEFAULT_QUOTA_ENABLED),
+        val(CONF_BATTERY_SOC_ENTITY),
+        val(CONF_BATTERY_CHARGE_ENTITY),
+        val(CONF_BATTERY_DISCHARGE_ENTITY),
+        val(CONF_BENCHMARK_ENABLED, DEFAULT_BENCHMARK_ENABLED),
+        val(CONF_BENCHMARK_HEATPUMP, DEFAULT_BENCHMARK_HEATPUMP),
+        val(CONF_FORECAST_ENABLED, DEFAULT_FORECAST_ENABLED),
+        str(val(CONF_FORECAST_WEEKS, DEFAULT_FORECAST_WEEKS)),
+        val(CONF_FORECAST_MODAL_DROP, DEFAULT_FORECAST_MODAL_DROP),
+        val(CONF_FORECAST_HP_ENTITY),
+        val(CONF_FORECAST_EV_ENTITY),
+        val(CONF_GRID_EXPORT_ENTITY),
+        val(CONF_GRID_IMPORT_ENTITY),
+        val(CONF_CONSUMPTION_ENTITY),
+        val(CONF_PV_POWER_ENTITY),
+        val(CONF_HOUSE_POWER_ENTITY),
+        strings,
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -2898,32 +2980,12 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
         if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
             ctrl = hass.data[DOMAIN][entry.entry_id].get(DATA_CTRL)
             if ctrl:
-                old_quota = ctrl.quota_enabled
-                old_batt_soc = ctrl.battery_soc_entity
-                old_batt_charge = ctrl.battery_charge_entity
-                old_batt_discharge = ctrl.battery_discharge_entity
-                old_benchmark = ctrl.benchmark_enabled
-                old_benchmark_hp = ctrl.benchmark_heatpump
-                old_forecast = ctrl.forecast_enabled
-
+                # Reload bei strukturellen Änderungen: Quota/Batterie/Benchmark/
+                # Forecast, Export-/Import-/Verbrauchs-Entity, Leistungssensoren
+                # (PV-Überschuss) und PV-Strings — davon hängt ab, welche Entities
+                # angelegt werden bzw. was nur beim Start aufgebaut wird.
                 opts = {**entry.data, **entry.options}
-                new_quota = opts.get(CONF_QUOTA_ENABLED, DEFAULT_QUOTA_ENABLED)
-                new_batt_soc = opts.get(CONF_BATTERY_SOC_ENTITY)
-                new_batt_charge = opts.get(CONF_BATTERY_CHARGE_ENTITY)
-                new_batt_discharge = opts.get(CONF_BATTERY_DISCHARGE_ENTITY)
-                new_benchmark = opts.get(CONF_BENCHMARK_ENABLED, DEFAULT_BENCHMARK_ENABLED)
-                new_benchmark_hp = opts.get(CONF_BENCHMARK_HEATPUMP, DEFAULT_BENCHMARK_HEATPUMP)
-                new_forecast = opts.get(CONF_FORECAST_ENABLED, DEFAULT_FORECAST_ENABLED)
-
-                needs_reload = (
-                    old_quota != new_quota
-                    or old_batt_soc != new_batt_soc
-                    or old_batt_charge != new_batt_charge
-                    or old_batt_discharge != new_batt_discharge
-                    or old_benchmark != new_benchmark
-                    or old_benchmark_hp != new_benchmark_hp
-                    or old_forecast != new_forecast
-                )
+                needs_reload = ctrl._structure_sig != _structure_signature(opts)
 
                 if needs_reload:
                     _LOGGER.info("Strukturelle Änderung erkannt, Reload wird ausgeführt")
