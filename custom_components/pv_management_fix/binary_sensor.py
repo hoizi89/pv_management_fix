@@ -18,18 +18,19 @@ from .const import (
     SURPLUS_RATIOS, SURPLUS_HYSTERESIS_RATIO,
     SURPLUS_ON_DELAY, SURPLUS_OFF_DELAY,
 )
+from .sensor import async_get_main_device_id, via_device_kwargs
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def get_pv_surplus_device_info(name: str) -> DeviceInfo:
+def get_pv_surplus_device_info(name: str, via_device_id: str | None = None) -> DeviceInfo:
     """DeviceInfo fuer das PV-Ueberschuss-Geraet."""
     return DeviceInfo(
         identifiers={(DOMAIN, f"{name}_pv_surplus")},
         name=f"{name} PV-Ueberschuss",
         manufacturer="Custom",
         model="PV Management - PV-Ueberschuss",
-        via_device=(DOMAIN, name),
+        **via_device_kwargs(name, via_device_id),
     )
 
 
@@ -42,6 +43,7 @@ async def async_setup_entry(
     """Setup der Binary Sensoren."""
     ctrl = hass.data[DOMAIN][entry.entry_id][DATA_CTRL]
     name = entry.data.get(CONF_NAME, "PV Fixpreis")
+    ctrl.main_device_id = async_get_main_device_id(hass, entry, name)
 
     entities = [
         PVSurplusBinarySensor(ctrl, name, "low"),
@@ -77,7 +79,9 @@ class PVSurplusBinarySensor(BinarySensorEntity, RestoreEntity):
         self._attr_name = f"{name} PV-Ueberschuss {label}"
         uid_name = "".join(c if c.isalnum() else "_" for c in name).lower()
         self._attr_unique_id = f"{DOMAIN}_{uid_name}_pv_surplus_{level}"
-        self._attr_device_info = get_pv_surplus_device_info(name)
+        self._attr_device_info = get_pv_surplus_device_info(
+            name, getattr(ctrl, "main_device_id", None)
+        )
         self._removed = False
         # State machine
         self._committed_state: bool = False

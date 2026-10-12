@@ -464,6 +464,9 @@ For **spot tariffs** (aWATTar, smartENERGY) with battery management:
 
 ## Changelog
 
+### v2.6.1
+- **Fix:** Deprecation-Warnung `via_device` behoben — Untergeräte verweisen per `via_device_id` auf das Hauptgerät (nötig ab HA 2027.8)
+
 ### v2.6.0
 - **Fix (#19):** Energie-Korrekturen werden beim Setzen einmalig zum dann gültigen Preis bewertet — die Gesamtersparnis schwankt nicht mehr mit dem Börsenpreis (EPEX)
 - **Fix:** Helper-Restore wird durch Options-Speichern nicht mehr überschrieben und berücksichtigt die Jahreskosten (Helper schrumpfte bei jedem Neustart)

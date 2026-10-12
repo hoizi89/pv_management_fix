@@ -14,6 +14,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 
@@ -30,8 +31,35 @@ DEVICE_BENCHMARK = "benchmark"
 DEVICE_PV_STRINGS = "pv_strings"
 DEVICE_FORECAST = "forecast"
 
+# via_device ist deprecated (HA 2027.8) -> via_device_id, sofern HA es kennt
+_VIA_DEVICE_ID_SUPPORTED = "via_device_id" in getattr(DeviceInfo, "__annotations__", {})
 
-def get_device_info(name: str, device_type: str = DEVICE_MAIN) -> DeviceInfo:
+
+def async_get_main_device_id(hass: HomeAssistant, entry: ConfigEntry, name: str) -> str | None:
+    """Hauptgeraet sicherstellen und dessen Registry-ID liefern (fuer via_device_id)."""
+    if not _VIA_DEVICE_ID_SUPPORTED:
+        return None
+    try:
+        return dr.async_get(hass).async_get_or_create(
+            config_entry_id=entry.entry_id, **get_device_info(name)
+        ).id
+    except Exception:  # noqa: BLE001
+        _LOGGER.debug("Main device not resolvable, skipping via_device_id", exc_info=True)
+        return None
+
+
+def via_device_kwargs(name: str, via_device_id: str | None) -> dict[str, Any]:
+    """Verweis aufs Hauptgeraet: via_device_id (neu) bzw. via_device (altes HA)."""
+    if not _VIA_DEVICE_ID_SUPPORTED:
+        return {"via_device": (DOMAIN, name)}
+    if via_device_id:
+        return {"via_device_id": via_device_id}
+    return {}
+
+
+def get_device_info(
+    name: str, device_type: str = DEVICE_MAIN, via_device_id: str | None = None
+) -> DeviceInfo:
     """Create DeviceInfo for different device types."""
     if device_type == DEVICE_PRICES or device_type == DEVICE_QUOTA:
         return DeviceInfo(
@@ -39,7 +67,7 @@ def get_device_info(name: str, device_type: str = DEVICE_MAIN) -> DeviceInfo:
             name=f"{name} Electricity & Costs",
             manufacturer="Custom",
             model="PV Management Fixed Price - Electricity & Costs",
-            via_device=(DOMAIN, name),
+            **via_device_kwargs(name, via_device_id),
         )
     elif device_type == DEVICE_BATTERY:
         return DeviceInfo(
@@ -47,7 +75,7 @@ def get_device_info(name: str, device_type: str = DEVICE_MAIN) -> DeviceInfo:
             name=f"{name} Battery",
             manufacturer="Custom",
             model="PV Management Fixed Price - Battery",
-            via_device=(DOMAIN, name),
+            **via_device_kwargs(name, via_device_id),
         )
     elif device_type == DEVICE_BENCHMARK:
         return DeviceInfo(
@@ -55,7 +83,7 @@ def get_device_info(name: str, device_type: str = DEVICE_MAIN) -> DeviceInfo:
             name=f"{name} Energy Benchmark",
             manufacturer="Custom",
             model="PV Energy Management+ - Energy Benchmark",
-            via_device=(DOMAIN, name),
+            **via_device_kwargs(name, via_device_id),
         )
     elif device_type == DEVICE_PV_STRINGS:
         return DeviceInfo(
@@ -63,7 +91,7 @@ def get_device_info(name: str, device_type: str = DEVICE_MAIN) -> DeviceInfo:
             name=f"{name} PV Strings",
             manufacturer="Custom",
             model="PV Management Fixed Price - PV Strings",
-            via_device=(DOMAIN, name),
+            **via_device_kwargs(name, via_device_id),
         )
     elif device_type == DEVICE_FORECAST:
         return DeviceInfo(
@@ -71,7 +99,7 @@ def get_device_info(name: str, device_type: str = DEVICE_MAIN) -> DeviceInfo:
             name=f"{name} Load Forecast",
             manufacturer="Custom",
             model="PV Energy Management+ - Load Forecast",
-            via_device=(DOMAIN, name),
+            **via_device_kwargs(name, via_device_id),
         )
     else:  # DEVICE_MAIN
         return DeviceInfo(
@@ -88,6 +116,7 @@ async def async_setup_entry(
     """Setup sensors."""
     ctrl = hass.data[DOMAIN][entry.entry_id][DATA_CTRL]
     name = entry.data.get(CONF_NAME, "PV Fixpreis")
+    ctrl.main_device_id = async_get_main_device_id(hass, entry, name)
 
     entities = [
         # === AMORTISATION (Main purpose) ===
@@ -264,7 +293,9 @@ class BaseEntity(SensorEntity):
         self._attr_state_class = state_class
         self._attr_device_class = device_class
         self._attr_entity_category = entity_category
-        self._attr_device_info = get_device_info(name, device_type)
+        self._attr_device_info = get_device_info(
+            name, device_type, getattr(ctrl, "main_device_id", None)
+        )
         self._removed = False
 
     @property
